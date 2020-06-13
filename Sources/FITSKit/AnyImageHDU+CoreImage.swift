@@ -23,172 +23,58 @@
  */
 
 import FITS
-import Accelerate
+import CoreImage
 import Foundation
 
 extension AnyImageHDU {
-    
-    public var mono : CGImage? {
-        
-        guard
-            var data = self.dataUnit,
-            let width = self.naxis(1),
-            let height = self.naxis(2),
-            let bitpix = self.bitpix
-        else {
-            return nil
+
+    public func cgimage(onError: ((Error) -> Void)?, onCompletion: @escaping (CGImage) -> Void) {
+     
+        guard let bitpix = bitpix else {
+            onError?(AcceleratedFail.invalidMetadata("Missing BITPIX information"))
+            return
         }
         
-        let buffer = self.monoBuffer(&data, width: width, height: height, bitpix: bitpix)
-        
-        let info = self.bitmapInfo(bitpix)
-        let format = vImage_CGImageFormat(bitsPerComponent: bitpix.bits, bitsPerPixel: bitpix.bits, colorSpace: CGColorSpaceCreateDeviceGray(), bitmapInfo: info)!
-        
-        return try? buffer.createCGImage(format: format)
-    }
-    
-    public var rgb : CGImage? {
-        
-        guard
-            var data = self.dataUnit,
-            let width = self.naxis(1),
-            let height = self.naxis(2),
-            let bitpix = self.bitpix
-            else {
-                return nil
+        guard let channels = naxis, let width = naxis(1), let height = naxis(2) else {
+            onError?(AcceleratedFail.invalidMetadata("Missing NAXIS information"))
+            return
         }
         
-        let buffer = self.rgbBuffer(&data, width: width, height: height, bitpix: bitpix)
         
-        let info = self.bitmapInfo(bitpix)
-        let format = vImage_CGImageFormat(bitsPerComponent: bitpix.bits, bitsPerPixel: bitpix.bits * 3, colorSpace: CGColorSpaceCreateDeviceRGB(), bitmapInfo: info)!
+        let bscale : Float = self.lookup(HDUKeyword.BSCALE) ?? 1
+        let bzero : Float = self.lookup(HDUKeyword.BZERO) ?? 0
         
-        return try? buffer.createCGImage(format: format)
-    }
-    
-    public func convert<D: DataLayout>(_ data: inout Data, width: Int, height: Int) -> [D]{
+        guard var dat = self.dataUnit else {
+            onError?(AcceleratedFail.missingData("DataUnit Empty"))
+            return
+        }
         
-        return data.withUnsafeMutableBytes { mptr8 in
-            mptr8.bindMemory(to: D.self).map{$0.littleEndian}
+        
+        var rgbF : [FITSByte_F]
+        var context : CGContext?
+        if channels == 2 {
+            var finfo = CGBitmapInfo(rawValue: CGImageAlphaInfo.none.rawValue)
+            finfo.insert(CGBitmapInfo(rawValue: CGBitmapInfo.byteOrder32Little.rawValue))
+            finfo.insert(CGBitmapInfo(rawValue: CGBitmapInfo.floatComponents.rawValue))
+            
+            rgbF = FITSByteTool.normalize_F(&dat, width: width, height: height, bscale: bscale, bzero: bzero, bitpix)
+            context = CGContext(data: &rgbF, width: width, height: height, bitsPerComponent: FITSByte_F.bits, bytesPerRow: width * FITSByte_F.bytes, space: CGColorSpaceCreateDeviceGray(), bitmapInfo: finfo.rawValue)
+            
+        } else  if channels == 3 {
+            var finfo = CGBitmapInfo(rawValue: CGImageAlphaInfo.noneSkipLast.rawValue)
+            finfo.insert(CGBitmapInfo(rawValue: CGBitmapInfo.byteOrder32Little.rawValue))
+            finfo.insert(CGBitmapInfo(rawValue: CGBitmapInfo.floatComponents.rawValue))
+            
+            rgbF = FITSByteTool.RGBAFFFF(&dat, width: width, height: height, bscale: bscale, bzero: bzero, bitpix)
+            context = CGContext(data: &rgbF, width: width, height: height, bitsPerComponent: FITSByte_F.bits, bytesPerRow: width * 4 * FITSByte_F.bytes, space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: finfo.rawValue)
+            
+        }
+        
+        if let image = context?.makeImage(){
+            onCompletion(image)
+        } else {
+            onError?(AcceleratedFail.unsupportedFormat("Unable to crate image"))
         }
     }
 
-    public func copynvert<D: DataLayout>(_ data: inout Data, width: Int, height: Int) -> [D] {
-        
-        let layerSize = width * height
-        
-        let tmp : [D] = data.withUnsafeMutableBytes { mptr8 in
-            mptr8.bindMemory(to: D.self).map{$0.littleEndian}
-        }
-        var array : [D] = .init(repeating: D.min, count: tmp.count)
-        for idx in stride(from: 0, to: tmp.count-3, by: 3) {
-            array[idx+0] = tmp[idx/3+layerSize*0]
-            array[idx+1] = tmp[idx/3+layerSize*1]
-            array[idx+2] = tmp[idx/3+layerSize*2]
-        }
-        return array
-    }
-    
-    public func monoBuffer(_ data: inout Data, width: Int, height: Int, bitpix: BITPIX) -> vImage_Buffer {
-        
-        switch bitpix {
-        case .UINT8:
-            var  raw : [BITPIX_8] =  convert(&data, width: width, height: height)
-            return raw.withUnsafeMutableBytes { ptr in
-                vImage_Buffer(data: ptr.baseAddress, height: vImagePixelCount(height), width: vImagePixelCount(width), rowBytes: width * bitpix.size )
-            }
-        case .INT16:
-            var  raw : [BITPIX_16] =  convert(&data, width: width, height: height)
-            return raw.withUnsafeMutableBytes { ptr in
-                vImage_Buffer(data: ptr.baseAddress, height: vImagePixelCount(height), width: vImagePixelCount(width), rowBytes: width * bitpix.size )
-            }
-        case .INT32:
-            var  raw : [BITPIX_32] =  convert(&data, width: width, height: height)
-            return raw.withUnsafeMutableBytes { ptr in
-                vImage_Buffer(data: ptr.baseAddress, height: vImagePixelCount(height), width: vImagePixelCount(width), rowBytes: width * bitpix.size )
-            }
-        case .INT64:
-            var  raw : [BITPIX_64] =  convert(&data, width: width, height: height)
-            return raw.withUnsafeMutableBytes { ptr in
-                vImage_Buffer(data: ptr.baseAddress, height: vImagePixelCount(height), width: vImagePixelCount(width), rowBytes: width * bitpix.size )
-            }
-        case .FLOAT32:
-            var  raw : [BITPIX_F] =  convert(&data, width: width, height: height)
-            return raw.withUnsafeMutableBytes { ptr in
-                vImage_Buffer(data: ptr.baseAddress, height: vImagePixelCount(height), width: vImagePixelCount(width), rowBytes: width * bitpix.size )
-            }
-        case .FLOAT64:
-            var  raw : [BITPIX_D] =  convert(&data, width: width, height: height)
-            return raw.withUnsafeMutableBytes { ptr in
-                vImage_Buffer(data: ptr.baseAddress, height: vImagePixelCount(height), width: vImagePixelCount(width), rowBytes: width * bitpix.size )
-            }
-        }
-        
-    }
-    
-    public func rgbBuffer(_ data: inout Data, width: Int, height: Int, bitpix: BITPIX) -> vImage_Buffer {
-        
-        switch bitpix {
-        case .UINT8:
-            var  raw : [BITPIX_8] =  copynvert(&data, width: width, height: height)
-            return raw.withUnsafeMutableBytes { ptr in
-                vImage_Buffer(data: ptr.baseAddress, height: vImagePixelCount(height), width: vImagePixelCount(width), rowBytes: width * 3 * bitpix.size )
-            }
-        case .INT16:
-            var  raw : [BITPIX_16] =  copynvert(&data, width: width, height: height)
-            return raw.withUnsafeMutableBytes { ptr in
-                vImage_Buffer(data: ptr.baseAddress, height: vImagePixelCount(height), width: vImagePixelCount(width), rowBytes: width * 3 * bitpix.size )
-            }
-        case .INT32:
-            var  raw : [BITPIX_32] =  copynvert(&data, width: width, height: height)
-            return raw.withUnsafeMutableBytes { ptr in
-                vImage_Buffer(data: ptr.baseAddress, height: vImagePixelCount(height), width: vImagePixelCount(width), rowBytes: width * 3 * bitpix.size )
-            }
-        case .INT64:
-            var  raw : [BITPIX_64] =  copynvert(&data, width: width, height: height)
-            return raw.withUnsafeMutableBytes { ptr in
-                vImage_Buffer(data: ptr.baseAddress, height: vImagePixelCount(height), width: vImagePixelCount(width), rowBytes: width * 3 * bitpix.size )
-            }
-        case .FLOAT32:
-            var  raw : [BITPIX_F] =  copynvert(&data, width: width, height: height)
-            return raw.withUnsafeMutableBytes { ptr in
-                vImage_Buffer(data: ptr.baseAddress, height: vImagePixelCount(height), width: vImagePixelCount(width), rowBytes: width * 3 * bitpix.size )
-            }
-        case .FLOAT64:
-            var  raw : [BITPIX_D] =  copynvert(&data, width: width, height: height)
-            return raw.withUnsafeMutableBytes { ptr in
-                vImage_Buffer(data: ptr.baseAddress, height: vImagePixelCount(height), width: vImagePixelCount(width), rowBytes: width * 3 * bitpix.size )
-            }
-        }
-        
-    }
-    
-    public func bitmapInfo(_ bitpix : BITPIX) -> CGBitmapInfo {
-        
-        var info = CGBitmapInfo(rawValue: CGImageAlphaInfo.none.rawValue)
-        switch bitpix {
-        case .UINT8:
-            //info.insert(CGBitmapInfo(rawValue: CGImageByteOrderInfo.orderDefault.rawValue))
-            break
-        case .INT16:
-            info.insert(CGBitmapInfo(rawValue: CGImageByteOrderInfo.order16Little.rawValue))
-            break
-        case .INT32:
-            info.insert(CGBitmapInfo(rawValue: CGImageByteOrderInfo.order32Little.rawValue))
-            break
-        case .INT64:
-            info.insert(CGBitmapInfo(rawValue: CGImageByteOrderInfo.orderDefault.rawValue))
-            break
-        case .FLOAT32:
-            info.insert(CGBitmapInfo(rawValue: CGImageByteOrderInfo.order32Big.rawValue))
-            info.insert(.floatComponents)
-            break
-        case .FLOAT64:
-            info.insert(.floatComponents)
-            break
-        }
-        return info
-        
-    }
-    
 }

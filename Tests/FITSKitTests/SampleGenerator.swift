@@ -15,24 +15,24 @@ public struct Sample {
         case blue = 2
     }
     
-    func rgb<D: DataLayout>(_ bitpix : D.Type) -> FitsFile {
+    func rgb<D: FITSByte>(_ bitpix : D.Type, blockSize: Int) -> FitsFile {
         
-        let red : [D] = imageData(.red)
-        let green : [D] = imageData(.green)
-        let blue : [D] = imageData(.blue)
+        let red : [D] = imageData(.red, blockSize: blockSize)
+        let green : [D] = imageData(.green, blockSize: blockSize)
+        let blue : [D] = imageData(.blue, blockSize: blockSize)
         
         let prime = PrimaryHDU()
-        prime.set(width: 300, height: 300, vectors: red, green, blue)
+        prime.set(width: blockSize * 3, height: blockSize * 3, vectors: red, green, blue)
         prime.set(HDUKeyword.COMMENT, value: nil, comment: "FITSKit \(D.bitpix) SAMPLE")
         
         return FitsFile(prime: prime)
     }
     
-    func imageData<F: DataLayout>(_ channel: Channel) -> [F] {
+    func imageData<F: FITSByte>(_ channel: Channel, blockSize: Int) -> [F] {
         
         let min = F.min.bigEndian
         let max = F.max.bigEndian
-        let size = 100
+        let size = blockSize
         
         var array : [F] = .init()
         let one : [F] = .init(repeating: max, count: size)
