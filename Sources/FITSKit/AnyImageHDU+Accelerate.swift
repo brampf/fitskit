@@ -38,6 +38,7 @@ extension AnyImageHDU {
         let gray = converted.withUnsafeMutableBytes{ mptr8 in
             vImage_Buffer(data: mptr8.baseAddress?.advanced(by: layerBytes * 0).bindMemory(to: FITSByte_F.self, capacity: width * height), height: vImagePixelCount(height), width: vImagePixelCount(width), rowBytes: rowBytes)
         }
+        
         var finfo = CGBitmapInfo(rawValue: CGImageAlphaInfo.none.rawValue)
         finfo.insert(CGBitmapInfo(rawValue: CGBitmapInfo.byteOrder32Little.rawValue))
         finfo.insert(CGBitmapInfo(rawValue: CGBitmapInfo.floatComponents.rawValue))
@@ -100,7 +101,6 @@ extension AnyImageHDU {
             onError?(AcceleratedFail.missingData("DataUnit Empty"))
             return
         }
-        
         
         var image : CGImage?
         if channels == 2 {

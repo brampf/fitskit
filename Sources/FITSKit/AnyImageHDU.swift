@@ -70,7 +70,7 @@ extension AnyImageHDU {
         data.append(blueData)
         //data.append(alphaData)
         
-        self.set(width: Int(buffer.width), height: Int(buffer.height), layers: 3, dataLayout: .UINT8, data: data)
+        self.set(dimensions: Int(buffer.width), Int(buffer.height), dataLayout: .UINT8, data: data)
     }
     
     

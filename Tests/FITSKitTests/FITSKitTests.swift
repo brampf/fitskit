@@ -24,7 +24,7 @@ final class FITSKitTests: XCTestCase {
     }
     
     func testLargeCoreImage() throws {
-        
+    
         let bigSample = Sample().rgb(FITSByte_F.self, blockSize: 1000)
         
         measure {
