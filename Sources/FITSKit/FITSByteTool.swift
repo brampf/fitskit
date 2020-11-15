@@ -30,9 +30,9 @@ public struct FITSByteTool {
      Converts the `Data` to elements of the desired `DataLayout`
      
      */
-    public static func asLittleEndian<D: FITSByte>(_ data: inout Data) -> [D]{
+    public static func asLittleEndian<D: FITSByte>(_ data: inout DataUnit) -> [D]{
         
-        return data.withUnsafeMutableBytes { mptr8 in
+        return data.withUnsafeBytes { mptr8 in
             mptr8.bindMemory(to: D.self).map{$0.littleEndian}
         }
     }
@@ -41,9 +41,9 @@ public struct FITSByteTool {
      Converts the `Data` to elements of the desired `DataLayout`
      
      */
-    public static func asBigEndian<D: FITSByte>(_ data: inout Data) -> [D]{
+    public static func asBigEndian<D: FITSByte>(_ data: inout DataUnit) -> [D]{
         
-        return data.withUnsafeMutableBytes { mptr8 in
+        return data.withUnsafeBytes { mptr8 in
             mptr8.bindMemory(to: D.self).map{$0.bigEndian}
         }
     }
@@ -52,31 +52,31 @@ public struct FITSByteTool {
      Converts the `Data` to a  sequence of `FITSByte_F`
      
      */
-    public static func normalize_F(_ data: inout Data, width: Int, height: Int, bscale: Float, bzero: Float, _ bitpix: BITPIX) -> [FITSByte_F]{
+    public static func normalize_F(_ data: inout DataUnit, width: Int, height: Int, bscale: Float, bzero: Float, _ bitpix: BITPIX) -> [FITSByte_F]{
         
         switch bitpix {
         case .UINT8:
-            return data.withUnsafeMutableBytes { mptr8 in
+            return data.withUnsafeBytes { mptr8 in
                 mptr8.bindMemory(to: FITSByte_8.self).map{ bzero + Float(bitpix: $0.bigEndian) * bscale }
             }
         case .INT16:
-            return data.withUnsafeMutableBytes { mptr8 in
+            return data.withUnsafeBytes { mptr8 in
                 mptr8.bindMemory(to: FITSByte_16.self).map{ bzero + Float(bitpix: $0.bigEndian) * bscale }
             }
         case .INT32:
-            return data.withUnsafeMutableBytes { mptr8 in
+            return data.withUnsafeBytes { mptr8 in
                 mptr8.bindMemory(to: FITSByte_32.self).map{ bzero + Float(bitpix: $0.bigEndian) * bscale }
             }
         case .INT64:
-            return data.withUnsafeMutableBytes { mptr8 in
+            return data.withUnsafeBytes { mptr8 in
                 mptr8.bindMemory(to: FITSByte_64.self).map{ bzero + Float(bitpix: $0.bigEndian) * bscale }
             }
         case .FLOAT32:
-            return data.withUnsafeMutableBytes { mptr8 in
+            return data.withUnsafeBytes { mptr8 in
                 mptr8.bindMemory(to: FITSByte_F.self).map{ Float(bitpix: $0.bigEndian) }
             }
         case .FLOAT64:
-            return data.withUnsafeMutableBytes { mptr8 in
+            return data.withUnsafeBytes { mptr8 in
                 mptr8.bindMemory(to: FITSByte_D.self).map{ Float(bitpix: $0.bigEndian) }
             }
         }
@@ -89,11 +89,11 @@ public struct FITSByteTool {
      GGG      >       RGB
      BBB                 RGB
      */
-    public static func RGB<D: FITSByte>(_ data: inout Data, width: Int, height: Int) -> [D] {
+    public static func RGB<D: FITSByte>(_ data: inout DataUnit, width: Int, height: Int) -> [D] {
         
         let layerSize = width * height
         
-        let tmp : [D] = data.withUnsafeMutableBytes { mptr8 in
+        let tmp : [D] = data.withUnsafeBytes { mptr8 in
             mptr8.bindMemory(to: D.self).map{$0.littleEndian}
         }
         var array : [D] = .init(repeating: D.min, count: tmp.count)
@@ -112,7 +112,7 @@ public struct FITSByteTool {
      GGG      >       RGB
      BBB                 RGB
      */
-    public static func RGBFFF(_ data: inout Data, width: Int, height: Int, bscale: Float, bzero: Float, _ bitpix: BITPIX) -> [FITSByte_F] {
+    public static func RGBFFF(_ data: inout DataUnit, width: Int, height: Int, bscale: Float, bzero: Float, _ bitpix: BITPIX) -> [FITSByte_F] {
         
         let layerSize = width * height
         
@@ -134,7 +134,7 @@ public struct FITSByteTool {
      GGG      >       RGBA
      BBB                 RGBA
      */
-    public static func RGBAFFFF(_ data: inout Data, width: Int, height: Int, bscale: Float, bzero: Float, _ bitpix: BITPIX) -> [FITSByte_F] {
+    public static func RGBAFFFF(_ data: inout DataUnit, width: Int, height: Int, bscale: Float, bzero: Float, _ bitpix: BITPIX) -> [FITSByte_F] {
         
         let layerSize = width * height
         
@@ -175,3 +175,4 @@ extension Float {
         }
     }
 }
+
