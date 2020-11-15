@@ -41,8 +41,8 @@ extension AnyImageHDU {
         }
         
         
-        let bscale : Float = self.lookup(HDUKeyword.BSCALE) ?? 1
-        let bzero : Float = self.lookup(HDUKeyword.BZERO) ?? 0
+        let bscale : Float = self.bscale ?? 1
+        let bzero : Float = self.bzero ?? 0
         
         guard var dat = self.dataUnit else {
             onError?(AcceleratedFail.missingData("DataUnit Empty"))
@@ -78,3 +78,4 @@ extension AnyImageHDU {
     }
 
 }
+
