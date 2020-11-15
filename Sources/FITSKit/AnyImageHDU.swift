@@ -44,7 +44,7 @@ extension AnyImageHDU {
         var red = try! vImage_Buffer(width: Int(buffer.width), height: Int(buffer.height), bitsPerPixel: format.bitsPerPixel)
         var green = try! vImage_Buffer(width: Int(buffer.width), height: Int(buffer.height), bitsPerPixel: format.bitsPerPixel)
         var blue = try! vImage_Buffer(width: Int(buffer.width), height: Int(buffer.height), bitsPerPixel: format.bitsPerPixel)
-        var tmp = try! vImage_Buffer(width: Int(buffer.width), height: Int(buffer.height), bitsPerPixel: format.bitsPerComponent * format.bitsPerPixel)
+        let tmp = try! vImage_Buffer(width: Int(buffer.width), height: Int(buffer.height), bitsPerPixel: format.bitsPerComponent * format.bitsPerPixel)
         
         defer {
             alpha.free()
