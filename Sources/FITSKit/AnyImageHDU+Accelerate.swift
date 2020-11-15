@@ -28,7 +28,7 @@ import Foundation
 
 extension AnyImageHDU {
     
-    func vMONO(_ data: inout Data,  width: Int, height: Int, bscale: Float, bzero: Float, _ bitpix: BITPIX) -> CGImage? {
+    func vMONO(_ data: inout DataUnit,  width: Int, height: Int, bscale: Float, bzero: Float, _ bitpix: BITPIX) -> CGImage? {
         
         var converted = FITSByteTool.normalize_F(&data, width: width, height: height, bscale: bscale, bzero: bzero, bitpix)
         
@@ -47,7 +47,7 @@ extension AnyImageHDU {
         return try? gray.createCGImage(format: format)
     }
     
-    func vRGB(_ data: inout Data, layer: (Int,Int,Int) = (0,1,2),  width: Int, height: Int, bscale: Float, bzero: Float, _ bitpix: BITPIX) -> CGImage? {
+    func vRGB(_ data: inout DataUnit, layer: (Int,Int,Int) = (0,1,2),  width: Int, height: Int, bscale: Float, bzero: Float, _ bitpix: BITPIX) -> CGImage? {
         
         var converted = FITSByteTool.normalize_F(&data, width: width, height: height, bscale: bscale, bzero: bzero, bitpix)
         
@@ -94,8 +94,8 @@ extension AnyImageHDU {
         }
         
         
-        let bscale : Float = self.lookup(HDUKeyword.BSCALE) ?? 1
-        let bzero : Float = self.lookup(HDUKeyword.BZERO) ?? 0
+        let bscale : Float = self.bscale ?? 1
+        let bzero : Float = self.bzero ?? 0
         
         guard var dat = self.dataUnit else {
             onError?(AcceleratedFail.missingData("DataUnit Empty"))
@@ -117,3 +117,4 @@ extension AnyImageHDU {
         }
     }
 }
+
