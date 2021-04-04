@@ -24,10 +24,18 @@
 import FITS
 import Foundation
 
+/**
+ Color-Codes sequential written quad binned RGGB
+ 
+ ....
+ RRRR GGGG ...
+ GGGG BBBB ...
+ ...
+ */
 public struct Bayer_QUAD_RGGB : Transformation {
     public typealias Parameter = Void
     
-    public init(parameter: Void) {
+    public init(parameter: Void = ()) {
         //
     }
     
@@ -44,9 +52,9 @@ public struct Bayer_QUAD_RGGB : Transformation {
         let min = data.min() ?? 0
         let max = data.max() ?? 65535
         
-        for y in stride(from: 0, to: height, by: 4) {
+        for y in stride(from: 0, to: height, by: 2) {
             
-            for x in stride(from: 0, to: width, by: 4) {
+            for x in stride(from: 0, to: width, by: 8) {
                 
                 let byte = width*y + x
                 let pixel = width*y + x

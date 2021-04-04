@@ -24,7 +24,12 @@
 import FITS
 import Foundation
 
-public struct Demosaic_BILINEAR : Transformation {
+/**
+ Demosaics the picture according to the bayer filter provided as `Parameter`
+ 
+*Note*: Only implements RGGB and BGGR at the moment
+ */
+public struct Demosaic_Bayer_BILINEAR : Transformation {
     public typealias Parameter = CFA_Pattern
     
     
@@ -74,14 +79,28 @@ public struct Demosaic_BILINEAR : Transformation {
                 
                 let offset = width*y + x
                 
-                // native Pixels
-                let tl_X = data[offset].bigEndian
-                let tr_G = data[offset+1].bigEndian
+                // native pixels
+                let tl_X = data[offset].bigEndian.normalize(zero, scale, .min, .max)
+                let tr_G = data[offset+1].bigEndian.normalize(zero, scale, .min, .max)
                 
-                let bl_G = data[offset+width].bigEndian
-                let br_Y = data[offset+1+width].bigEndian
+                let bl_G = data[offset+width].bigEndian.normalize(zero, scale, .min, .max)
+                let br_Y = data[offset+1+width].bigEndian.normalize(zero, scale, .min, .max)
+                
+                // interpolated pixels
+                let tl_G = plus(data, x, y, width, height, offset, scale, zero)
+                let tl_Y = cross(data, x, y, width, height, offset, scale, zero)
+                
+                let tr_X = horizontal(data, x+1, y, width, height, offset+1, scale, zero)
+                let tr_Y = cross(data, x+1, y, width, height, offset+1, scale, zero)
+                
+                let bl_X = vertical(data, x, y+1, width, height, offset+width, scale, zero)
+                let bl_Y = cross(data, x, y+1, width, height, offset+width, scale, zero)
+                
+                let br_X = cross(data, x+1, y+1, width, height, offset+1+width, scale, zero)
+                let br_G = plus(data, x+1, y+1, width, height, offset+1+width, scale, zero)
                 
                 
+                /*
                 var tl_G : [Byte] = [] // plus
                 var tl_Y : [Byte] = [] // cross
                 
@@ -93,7 +112,6 @@ public struct Demosaic_BILINEAR : Transformation {
                 
                 var br_X : [Byte] = [] // cross
                 var br_G : [Byte] = [] // plus
-                
                 
                 tl_Y.append(br_Y)
                 
@@ -187,25 +205,189 @@ public struct Demosaic_BILINEAR : Transformation {
                     br_G.append(data[offset+1+width+width])
                     br_X.append(data[offset+width+width])
                 }
+                    */
+
+                X[offset] = tl_X
+                G[offset] = tl_G
+                Y[offset] = tl_Y
                 
-                X[offset] = tl_X.normalize(zero, scale, .min, .max)
-                G[offset] = tl_G.normalize(zero, scale, .min, .max)
-                Y[offset] = tl_Y.normalize(zero, scale, .min, .max)
+                X[offset+1] = tr_X
+                G[offset+1] = tr_G
+                Y[offset+1] = tr_Y
                 
-                X[offset+1] = tr_X.normalize(zero, scale, .min, .max)
-                G[offset+1] = tr_G.normalize(zero, scale, .min, .max)
-                Y[offset+1] = tr_Y.normalize(zero, scale, .min, .max)
+                X[offset+width] = bl_X
+                G[offset+width] = bl_G
+                Y[offset+width] = bl_Y
                 
-                X[offset+width] = bl_X.normalize(zero, scale, .min, .max)
-                G[offset+width] = bl_G.normalize(zero, scale, .min, .max)
-                Y[offset+width] = bl_Y.normalize(zero, scale, .min, .max)
-                
-                X[offset+1+width] = br_X.normalize(zero, scale, .min, .max)
-                G[offset+1+width] = br_G.normalize(zero, scale, .min, .max)
-                Y[offset+1+width] = br_Y.normalize(zero, scale, .min, .max)
+                X[offset+1+width] = br_X
+                G[offset+1+width] = br_G
+                Y[offset+1+width] = br_Y
                 
             }
         }
+    }
+    
+    /**
+     computes average from a plus pattern
+     
+     ... O ...
+     O x O
+     ... O ...
+     */
+    func plus<Byte: FITSByte>(_ data: UnsafeBufferPointer<Byte>,
+              _ x: Int,
+              _ y: Int,
+              _ width: Int,
+              _ height: Int,
+              _ offset: Int,
+              _ scale: Float,
+              _ zero: Float) -> Float
+    {
+        
+        var sum : Float = 0
+        var div : Float = 0
+        
+        if x > 0 {
+            // left
+            sum += data[offset-1].bigEndian.normalize(zero, scale, .min, .max)
+            div += 1
+        }
+        
+        if x < width-3 {
+            // right
+            sum += data[offset+1].bigEndian.normalize(zero, scale, .min, .max)
+            div += 1
+        }
+        
+        if y > 0 {
+            // left
+            sum += data[offset-width].bigEndian.normalize(zero, scale, .min, .max)
+            div += 1
+        }
+        
+        if y < height-3 {
+            // right
+            sum += data[offset+width].bigEndian.normalize(zero, scale, .min, .max)
+            div += 1
+        }
+        
+        return (sum / div)
+    }
+    
+    /**
+     computes average from a cross pattern
+     
+     O ... O
+     ... x ...
+     O ... O
+     */
+    func cross<Byte: FITSByte>(_ data: UnsafeBufferPointer<Byte>,
+              _ x: Int,
+              _ y: Int,
+              _ width: Int,
+              _ height: Int,
+              _ offset: Int,
+              _ scale: Float,
+              _ zero: Float) -> Float
+    {
+        
+        var sum : Float = 0
+        var div : Float = 0
+        
+        if x > 0 && y > 0 {
+            // top left
+            sum += data[offset-1-width].bigEndian.normalize(zero, scale, .min, .max)
+            div += 1
+        }
+        
+        if x < width-3 && y > 0 {
+            // top right
+            sum += data[offset+1-width].bigEndian.normalize(zero, scale, .min, .max)
+            div += 1
+        }
+        
+        if x > 0 && y < height-3 {
+            // bottom left
+            sum += data[offset-1+width].bigEndian.normalize(zero, scale, .min, .max)
+            div += 1
+        }
+        
+        if x < width-3 && y < height-1 {
+            // bottom right
+            sum += data[offset+1+width].bigEndian.normalize(zero, scale, .min, .max)
+            div += 1
+        }
+        
+        return (sum / div)
+    }
+    
+    /**
+     computes average from a horizontal line
+     
+     ... ... ...
+     O x O
+     ... ... ...
+     */
+    func horizontal<Byte: FITSByte>(_ data: UnsafeBufferPointer<Byte>,
+                                    _ x: Int,
+                                    _ y: Int,
+                                    _ width: Int,
+                                    _ height: Int,
+                                    _ offset: Int,
+                                    _ scale: Float,
+                                    _ zero: Float) -> Float
+    {
+        
+        var sum : Float = 0
+        var div : Float = 0
+        
+        if x > 0 {
+            // left
+            sum += data[offset-1].bigEndian.normalize(zero, scale, .min, .max)
+            div += 1
+        }
+        
+        if x < width-3 {
+            // right
+            sum += data[offset+1].bigEndian.normalize(zero, scale, .min, .max)
+            div += 1
+        }
+        
+        return (sum / div)
+    }
+    
+    /**
+     computes average from a vertical line
+     ... O ...
+     ... x ...
+     ... O ...
+     */
+    func vertical<Byte: FITSByte>(_ data: UnsafeBufferPointer<Byte>,
+                                    _ x: Int,
+                                    _ y: Int,
+                                    _ width: Int,
+                                    _ height: Int,
+                                    _ offset: Int,
+                                    _ scale: Float,
+                                    _ zero: Float) -> Float
+    {
+        
+        var sum : Float = 0
+        var div : Float = 0
+        
+        if y > 0 {
+            // left
+            sum += data[offset-width].bigEndian.normalize(zero, scale, .min, .max)
+            div += 1
+        }
+        
+        if y < height-3 {
+            // right
+            sum += data[offset+width].bigEndian.normalize(zero, scale, .min, .max)
+            div += 1
+        }
+        
+        return (sum / div)
     }
 
     public func targetDimensions(width: Int, height: Int) -> (width: Int, height: Int) {

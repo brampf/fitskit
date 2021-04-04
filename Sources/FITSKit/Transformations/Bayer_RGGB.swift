@@ -24,10 +24,18 @@
 import FITS
 import Foundation
 
+/**
+ Color-Codes "normal" RGGB
+ 
+ ....
+ R G R G R G ...
+ G B G B G B ...
+ ...
+ */
 public struct Bayer_RGGB : Transformation {
     public typealias Parameter = Void
     
-    public init(parameter: Void) {
+    public init(parameter: Void = ()) {
         //
     }
     

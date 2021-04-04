@@ -23,19 +23,35 @@
  */
 import FITS
 
+/**
+ A image transformation
+ */
 public protocol Transformation {
     associatedtype Parameter
     
+    /// Standard initiliazer allows for parametrization via `Parameter`
     init(parameter: Parameter)
     
+    /** performs the transformation
+     
+    - Parameters:
+        - data: the data to transofrm
+        - width: number of pixels per row
+        - height: number of pixles per colum
+        - zero: normalisation factor for each value
+        - scale: normalisation factor for each value
+     */
     func perform<Byte: FITSByte>(_ data: UnsafeBufferPointer<Byte>,
-                                          _ width: Int,
-                                          _ height: Int,
-                                          _ zero: Float,
-                                          _ scale : Float,
-                                          _ R: inout [FITSByte_F],
-                                          _ G: inout [FITSByte_F],
-                                          _ B: inout [FITSByte_F])
+                                 _ width: Int,
+                                 _ height: Int,
+                                 _ zero: Float,
+                                 _ scale : Float,
+                                 _ R: inout [FITSByte_F],
+                                 _ G: inout [FITSByte_F],
+                                 _ B: inout [FITSByte_F])
     
+    /**
+     Computes the target dimensions for the output imgage
+     */
     func targetDimensions(width: Int, height: Int) -> (width: Int, height: Int)
 }

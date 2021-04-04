@@ -24,8 +24,6 @@
 import FITS
 import Foundation
 
-import Accelerate
-
 public struct FITSByteTool {
     
     /**

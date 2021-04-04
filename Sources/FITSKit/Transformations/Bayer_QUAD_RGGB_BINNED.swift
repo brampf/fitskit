@@ -24,10 +24,18 @@
 import FITS
 import Foundation
 
+/**
+ Rewrites the pixel from quad binned RGGB to "normal" RGGB
+ 
+ R R G G    >   R G R G
+ R R G G    >   G B G B
+ G G B B    >   R G R G
+ G G B B    >   G B G B
+ */
 public struct Bayer_QUAD_RGGB_BINNED : Transformation {
     public typealias Parameter = Void
     
-    public init(parameter: Void) {
+    public init(parameter: Void = ()) {
         //
     }
     
@@ -46,7 +54,7 @@ public struct Bayer_QUAD_RGGB_BINNED : Transformation {
         
         for y in stride(from: 0, to: height, by: 2) {
             
-            for x in stride(from: 0, to: width, by: 4) {
+            for x in stride(from: 0, to: width, by: 8) {
                 
                 let byte = width*y + x
                 let pixel = width*y + x
