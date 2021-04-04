@@ -24,6 +24,8 @@
 import FITS
 import Foundation
 
+import Accelerate
+
 public struct FITSByteTool {
     
     /**
@@ -52,24 +54,25 @@ public struct FITSByteTool {
      Converts the `Data` to a  sequence of `FITSByte_F`
      
      */
+    @available(*, deprecated, message: "Normalisation to Float moved to FITSByte.normalize")
     public static func normalize_F(_ data: inout DataUnit, width: Int, height: Int, bscale: Float, bzero: Float, _ bitpix: BITPIX) -> [FITSByte_F]{
         
         switch bitpix {
         case .UINT8:
             return data.withUnsafeBytes { mptr8 in
-                mptr8.bindMemory(to: FITSByte_8.self).map{ bzero + Float(bitpix: $0.bigEndian) * bscale }
+                mptr8.bindMemory(to: FITSByte_8.self).map{ $0.bigEndian.normalize(bzero, bscale, .min, .max) }
             }
         case .INT16:
             return data.withUnsafeBytes { mptr8 in
-                mptr8.bindMemory(to: FITSByte_16.self).map{ bzero + Float(bitpix: $0.bigEndian) * bscale }
+                mptr8.bindMemory(to: FITSByte_16.self).map{ $0.bigEndian.normalize(bzero, bscale, .min, .max) }
             }
         case .INT32:
             return data.withUnsafeBytes { mptr8 in
-                mptr8.bindMemory(to: FITSByte_32.self).map{ bzero + Float(bitpix: $0.bigEndian) * bscale }
+                mptr8.bindMemory(to: FITSByte_32.self).map{ $0.bigEndian.normalize(bzero, bscale, .min, .max) }
             }
         case .INT64:
             return data.withUnsafeBytes { mptr8 in
-                mptr8.bindMemory(to: FITSByte_64.self).map{ bzero + Float(bitpix: $0.bigEndian) * bscale }
+                mptr8.bindMemory(to: FITSByte_64.self).map{ $0.bigEndian.normalize(bzero, bscale, .min, .max) }
             }
         case .FLOAT32:
             return data.withUnsafeBytes { mptr8 in
@@ -149,7 +152,6 @@ public struct FITSByteTool {
         }
         return array
     }
-
 }
 
 extension Float {
@@ -175,4 +177,3 @@ extension Float {
         }
     }
 }
-
