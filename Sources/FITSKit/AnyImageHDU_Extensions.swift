@@ -55,8 +55,6 @@ extension AnyImageHDU {
         }
     }
     
-    
-    
     public func render<T: Transformation>(_ transformation: T) throws -> CGImage
     {
         guard let width = self.naxis(1), let height = self.naxis(2) else {
@@ -101,6 +99,39 @@ extension AnyImageHDU {
             }
         }
         return try rgbBuffer.createCGImage(format: rgbFormatF)
+    }
+    
+    public func render<T: _Transformation>(_ transformation: T) throws -> CGImage
+    {
+        guard let width = self.naxis(1), let height = self.naxis(2) else {
+            fatalError("invalid image dimensions")
+        }
+        
+        let targetDimensions = transformation.targetDimensions(width: width, height: height)
+        let targetSize = 3*targetDimensions.width * targetDimensions.height
+        
+        var out : [FITSByte_F] = .init(repeating: 0, count: targetSize)
+        
+        guard let data = self.dataUnit else {
+            fatalError("NO DataUnit")
+        }
+        
+        let rgbBuffer : vImage_Buffer = data.withUnsafeBytes{ inPtr in
+            return out.withUnsafeMutableBufferPointer { outPtr in
+                transformation.perform(inPtr.bindMemory(to: T.Byte.self), width, height, outPtr)
+                
+                return vImage_Buffer(data: outPtr.baseAddress, height: vImagePixelCount(targetDimensions.height), width: vImagePixelCount(targetDimensions.width), rowBytes: 3*4*targetDimensions.width)
+            }
+           
+        }
+        
+        var finfo = CGBitmapInfo(rawValue: CGImageAlphaInfo.none.rawValue)
+        finfo.insert(CGBitmapInfo.byteOrder32Little)
+        finfo.insert(CGBitmapInfo.floatComponents)
+        let rgbFormat = vImage_CGImageFormat(bitsPerComponent: 32, bitsPerPixel: 96, colorSpace: CGColorSpaceCreateDeviceRGB(), bitmapInfo: finfo)!
+        
+        
+        return try rgbBuffer.createCGImage(format: rgbFormat)
     }
     
 }

@@ -55,3 +55,18 @@ public protocol Transformation {
      */
     func targetDimensions(width: Int, height: Int) -> (width: Int, height: Int)
 }
+
+
+public protocol _Transformation {
+    associatedtype Byte : FITSByte
+    
+    func perform(_ data: UnsafeBufferPointer<Byte>,
+                        _ width: Int,
+                        _ height: Int,
+                        _ out: UnsafeMutableBufferPointer<Float>)
+    
+    /**
+     Computes the target dimensions for the output imgage
+     */
+    func targetDimensions(width: Int, height: Int) -> (width: Int, height: Int)
+}

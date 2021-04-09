@@ -149,7 +149,7 @@ public struct Demosaic_Bilinear : Transformation {
                 
                 // interpolated pixels
                 let tl_X = horizontal(data, x, y, width, height, offset, scale, zero)
-                let tl_Y = cross(data, x, y, width, height, offset, scale, zero)
+                let tl_Y = vertical(data, x, y, width, height, offset, scale, zero)
                 
                 let tr_G = plus(data, x+1, y, width, height, offset+1, scale, zero)
                 let tr_Y = cross(data, x+1, y, width, height, offset+1, scale, zero)
@@ -158,7 +158,7 @@ public struct Demosaic_Bilinear : Transformation {
                 let bl_G = plus(data, x, y+1, width, height, offset+width, scale, zero)
                 
                 let br_X = vertical(data, x+1, y+1, width, height, offset+1+width, scale, zero)
-                let br_Y = plus(data, x+1, y+1, width, height, offset+1+width, scale, zero)
+                let br_Y = horizontal(data, x+1, y+1, width, height, offset+1+width, scale, zero)
                 
                 X[offset] = tl_X
                 G[offset] = tl_G
