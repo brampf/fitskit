@@ -31,12 +31,33 @@ import Foundation
  */
 public struct Demosaic_Bilinear_OPT<Byte: FITSByte> : _Transformation {
     
-    public typealias Parameter = CFA_Pattern
+    private var pattern : CFA_Pattern
     
-    var pattern : CFA_Pattern
+    private var max1 : Float
+    private var max2 : Float
+    private var max3 : Float
+    private var max4 : Float
     
-    public init(parameter: Parameter) {
-        self.pattern = parameter
+    private var scale : Float
+    
+    private var add1 : Float
+    private var add2 : Float
+    private var add3 : Float
+    private var add4 : Float
+    
+    public init(pattern: CFA_Pattern, bscale: Float, bzero: Float, _ threads: Int = 8) {
+        self.pattern = pattern
+        self.scale = bscale
+        
+        self.add1 = bzero
+        self.add2 = bzero * 2.0
+        self.add3 = bzero * 3.0
+        self.add4 = bzero * 4.0
+        
+        self.max1 = Byte.range
+        self.max2 = Byte.range * 2.0
+        self.max3 = Byte.range * 3.0
+        self.max4 = Byte.range * 4.0
     }
     
     public func perform(_ data: UnsafeBufferPointer<Byte>,
@@ -87,11 +108,11 @@ public struct Demosaic_Bilinear_OPT<Byte: FITSByte> : _Transformation {
         
     }
     
-    @inlinable
-    func head(width: Int, _ data: UnsafeBufferPointer<Byte>, _ out: UnsafeMutableBufferPointer<Float>){
+    private func head(width: Int, _ data: UnsafeBufferPointer<Byte>, _ out: UnsafeMutableBufferPointer<Float>){
         
         var offset = 0
         var pixel = 0
+        let width3 = 3*width
         
         out[pixel+0] = native(data, width, offset)
         out[pixel+1] = head_start_plus(data, width, offset)
@@ -101,17 +122,17 @@ public struct Demosaic_Bilinear_OPT<Byte: FITSByte> : _Transformation {
         out[pixel+4] = native(data, width, offset+1)
         out[pixel+5] = head_vertical(data, width, offset+1)
         
-        out[pixel+0+3*width] = vertical(data, width, offset+width)
-        out[pixel+1+3*width] = native(data, width, offset+width)
-        out[pixel+2+3*width] = start_horizontal(data, width, offset+width)
+        out[pixel+0+width3] = vertical(data, width, offset+width)
+        out[pixel+1+width3] = native(data, width, offset+width)
+        out[pixel+2+width3] = start_horizontal(data, width, offset+width)
         
-        out[pixel+3+3*width] = cross(data,width, offset+1+width)
-        out[pixel+4+3*width] = plus(data, width, offset+1+width)
-        out[pixel+5+3*width] = native(data, width, offset+1+width)
+        out[pixel+3+width3] = cross(data,width, offset+1+width)
+        out[pixel+4+width3] = plus(data, width, offset+1+width)
+        out[pixel+5+width3] = native(data, width, offset+1+width)
         
         offset += 2
         pixel += 6
-    
+        
         for _ in stride(from: 2, to: width-2, by: 2) {
             
             out[pixel+0] = native(data, width, offset)
@@ -122,13 +143,13 @@ public struct Demosaic_Bilinear_OPT<Byte: FITSByte> : _Transformation {
             out[pixel+4] = native(data, width, offset+1)
             out[pixel+5] = head_vertical(data, width, offset+1)
             
-            out[pixel+0+3*width] = head_vertical(data, width, offset+width)
-            out[pixel+1+3*width] = native(data, width, offset+width)
-            out[pixel+2+3*width] = horizontal(data, width, offset+width)
+            out[pixel+0+width3] = head_vertical(data, width, offset+width)
+            out[pixel+1+width3] = native(data, width, offset+width)
+            out[pixel+2+width3] = horizontal(data, width, offset+width)
             
-            out[pixel+3+3*width] = cross(data,width, offset+1+width)
-            out[pixel+4+3*width] = plus(data, width, offset+1+width)
-            out[pixel+5+3*width] = native(data, width, offset+1+width)
+            out[pixel+3+width3] = cross(data,width, offset+1+width)
+            out[pixel+4+width3] = plus(data, width, offset+1+width)
+            out[pixel+5+width3] = native(data, width, offset+1+width)
             
             offset += 2
             pixel += 6
@@ -142,21 +163,21 @@ public struct Demosaic_Bilinear_OPT<Byte: FITSByte> : _Transformation {
         out[pixel+4] = native(data, width, offset+1)
         out[pixel+5] = head_vertical(data, width, offset+1)
         
-        out[pixel+0+3*width] = head_vertical(data, width, offset+width)
-        out[pixel+1+3*width] = native(data, width, offset+width)
-        out[pixel+2+3*width] = horizontal(data, width, offset+width)
+        out[pixel+0+width3] = head_vertical(data, width, offset+width)
+        out[pixel+1+width3] = native(data, width, offset+width)
+        out[pixel+2+width3] = horizontal(data, width, offset+width)
         
-        out[pixel+3+3*width] = head_end_cross(data,width, offset+1+width)
-        out[pixel+4+3*width] = head_end_plus(data, width, offset+1+width)
-        out[pixel+5+3*width] = native(data, width, offset+1+width)
+        out[pixel+3+width3] = head_end_cross(data,width, offset+1+width)
+        out[pixel+4+width3] = head_end_plus(data, width, offset+1+width)
+        out[pixel+5+width3] = native(data, width, offset+1+width)
     }
     
-    @inlinable
-    func middle(y: Int, width: Int, _ data: UnsafeBufferPointer<Byte>, _ out: UnsafeMutableBufferPointer<Float>){
+    private func middle(y: Int, width: Int, _ data: UnsafeBufferPointer<Byte>, _ out: UnsafeMutableBufferPointer<Float>){
         
         // Special treatment of the first quadrant
         var offset = y*width
         var pixel = offset * 3
+        let width3 = 3*width
         
         out[pixel+0] = native(data, width, offset)
         out[pixel+1] = start_plus(data, width, offset)
@@ -166,13 +187,13 @@ public struct Demosaic_Bilinear_OPT<Byte: FITSByte> : _Transformation {
         out[pixel+4] = native(data, width, offset+1)
         out[pixel+5] = vertical(data, width, offset+1)
         
-        out[pixel+0+3*width] = vertical(data, width, offset+width)
-        out[pixel+1+3*width] = native(data, width, offset+width)
-        out[pixel+2+3*width] = start_horizontal(data, width, offset+width)
+        out[pixel+0+width3] = vertical(data, width, offset+width)
+        out[pixel+1+width3] = native(data, width, offset+width)
+        out[pixel+2+width3] = start_horizontal(data, width, offset+width)
         
-        out[pixel+3+3*width] = cross(data,width, offset+1+width)
-        out[pixel+4+3*width] = plus(data, width, offset+1+width)
-        out[pixel+5+3*width] = native(data, width, offset+1+width)
+        out[pixel+3+width3] = cross(data,width, offset+1+width)
+        out[pixel+4+width3] = plus(data, width, offset+1+width)
+        out[pixel+5+width3] = native(data, width, offset+1+width)
         
         offset += 2
         pixel += 6
@@ -188,13 +209,13 @@ public struct Demosaic_Bilinear_OPT<Byte: FITSByte> : _Transformation {
             out[pixel+4] = native(data, width, offset+1)
             out[pixel+5] = vertical(data, width, offset+1)
             
-            out[pixel+0+3*width] = vertical(data, width, offset+width)
-            out[pixel+1+3*width] = native(data, width, offset+width)
-            out[pixel+2+3*width] = horizontal(data, width, offset+width)
+            out[pixel+0+width3] = vertical(data, width, offset+width)
+            out[pixel+1+width3] = native(data, width, offset+width)
+            out[pixel+2+width3] = horizontal(data, width, offset+width)
             
-            out[pixel+3+3*width] = cross(data,width, offset+1+width)
-            out[pixel+4+3*width] = plus(data, width, offset+1+width)
-            out[pixel+5+3*width] = native(data, width, offset+1+width)
+            out[pixel+3+width3] = cross(data,width, offset+1+width)
+            out[pixel+4+width3] = plus(data, width, offset+1+width)
+            out[pixel+5+width3] = native(data, width, offset+1+width)
             
             offset += 2
             pixel += 6
@@ -210,20 +231,20 @@ public struct Demosaic_Bilinear_OPT<Byte: FITSByte> : _Transformation {
         out[pixel+4] = native(data, width, offset+1)
         out[pixel+5] = vertical(data, width, offset+1)
         
-        out[pixel+0+3*width] = vertical(data, width, offset+width)
-        out[pixel+1+3*width] = native(data, width, offset+width)
-        out[pixel+2+3*width] = end_horizontal(data, width, offset+width)
+        out[pixel+0+width3] = vertical(data, width, offset+width)
+        out[pixel+1+width3] = native(data, width, offset+width)
+        out[pixel+2+width3] = end_horizontal(data, width, offset+width)
         
-        out[pixel+3+3*width] = end_cross(data,width, offset+1+width)
-        out[pixel+4+3*width] = end_plus(data, width, offset+1+width)
-        out[pixel+5+3*width] = native(data, width, offset+1+width)
+        out[pixel+3+width3] = end_cross(data,width, offset+1+width)
+        out[pixel+4+width3] = end_plus(data, width, offset+1+width)
+        out[pixel+5+width3] = native(data, width, offset+1+width)
     }
     
-    @inlinable
-    func tail(height: Int, width: Int, _ data: UnsafeBufferPointer<Byte>, _ out: UnsafeMutableBufferPointer<Float>){
+    private func tail(height: Int, width: Int, _ data: UnsafeBufferPointer<Byte>, _ out: UnsafeMutableBufferPointer<Float>){
         
         var offset = (height-2)*width
         var pixel = offset * 3
+        let width3 = 3*width
         
         out[pixel+0] = native(data, width, offset)
         out[pixel+1] = tail_start_plus(data, width, offset)
@@ -233,13 +254,13 @@ public struct Demosaic_Bilinear_OPT<Byte: FITSByte> : _Transformation {
         out[pixel+4] = native(data, width, offset+1)
         out[pixel+5] = tail_vertical(data, width, offset+1)
         
-        out[pixel+0+3*width] = tail_vertical(data, width, offset+width)
-        out[pixel+1+3*width] = native(data, width, offset+width)
-        out[pixel+2+3*width] = start_horizontal(data, width, offset+width)
+        out[pixel+0+width3] = tail_vertical(data, width, offset+width)
+        out[pixel+1+width3] = native(data, width, offset+width)
+        out[pixel+2+width3] = start_horizontal(data, width, offset+width)
         
-        out[pixel+3+3*width] = tail_cross(data,width, offset+1+width)
-        out[pixel+4+3*width] = tail_plus(data, width, offset+1+width)
-        out[pixel+5+3*width] = native(data, width, offset+1+width)
+        out[pixel+3+width3] = tail_cross(data,width, offset+1+width)
+        out[pixel+4+width3] = tail_plus(data, width, offset+1+width)
+        out[pixel+5+width3] = native(data, width, offset+1+width)
         
         offset += 2
         pixel += 6
@@ -254,13 +275,13 @@ public struct Demosaic_Bilinear_OPT<Byte: FITSByte> : _Transformation {
             out[pixel+4] = native(data, width, offset+1)
             out[pixel+5] = tail_vertical(data, width, offset+1)
             
-            out[pixel+0+3*width] = tail_vertical(data, width, offset+width)
-            out[pixel+1+3*width] = native(data, width, offset+width)
-            out[pixel+2+3*width] = horizontal(data, width, offset+width)
+            out[pixel+0+width3] = tail_vertical(data, width, offset+width)
+            out[pixel+1+width3] = native(data, width, offset+width)
+            out[pixel+2+width3] = horizontal(data, width, offset+width)
             
-            out[pixel+3+3*width] = tail_cross(data,width, offset+1+width)
-            out[pixel+4+3*width] = tail_plus(data, width, offset+1+width)
-            out[pixel+5+3*width] = native(data, width, offset+1+width)
+            out[pixel+3+width3] = tail_cross(data,width, offset+1+width)
+            out[pixel+4+width3] = tail_plus(data, width, offset+1+width)
+            out[pixel+5+width3] = native(data, width, offset+1+width)
             
             offset += 2
             pixel += 6
@@ -274,13 +295,13 @@ public struct Demosaic_Bilinear_OPT<Byte: FITSByte> : _Transformation {
         out[pixel+4] = native(data, width, offset+1)
         out[pixel+5] = tail_vertical(data, width, offset+1)
         
-        out[pixel+0+3*width] = tail_vertical(data, width, offset+width)
-        out[pixel+1+3*width] = native(data, width, offset+width)
-        out[pixel+2+3*width] = end_horizontal(data, width, offset+width)
+        out[pixel+0+width3] = tail_vertical(data, width, offset+width)
+        out[pixel+1+width3] = native(data, width, offset+width)
+        out[pixel+2+width3] = end_horizontal(data, width, offset+width)
         
-        out[pixel+3+3*width] = tail_end_cross(data,width, offset+1+width)
-        out[pixel+4+3*width] = tail_end_plus(data, width, offset+1+width)
-        out[pixel+5+3*width] = native(data, width, offset+1+width)
+        out[pixel+3+width3] = tail_end_cross(data,width, offset+1+width)
+        out[pixel+4+width3] = tail_end_plus(data, width, offset+1+width)
+        out[pixel+5+width3] = native(data, width, offset+1+width)
     }
     
     /**
@@ -290,18 +311,17 @@ public struct Demosaic_Bilinear_OPT<Byte: FITSByte> : _Transformation {
      O x O
      ... O ...
      */
-    @inlinable
-    func plus(_ data: UnsafeBufferPointer<Byte>,
-                              _ width: Int,
-                              _ offset: Int) -> Float
+    private func plus(_ data: UnsafeBufferPointer<Byte>,
+                      _ width: Int,
+                      _ offset: Int) -> Float
     {
         // left
-        var sum = data[offset-1].bigEndian.floatnorm // left
-        sum += data[offset+1].bigEndian.floatnorm   // right
-        sum += data[offset-width].bigEndian.floatnorm // top
-        sum += data[offset+width].bigEndian.floatnorm // bottom
+        var sum = data[offset-1].bigEndian.float // left
+        sum += data[offset+1].bigEndian.float   // right
+        sum += data[offset-width].bigEndian.float // top
+        sum += data[offset+width].bigEndian.float // bottom
         
-        return sum / 4.0
+        return (add4 + sum) / max4
     }
     
     /**
@@ -310,17 +330,16 @@ public struct Demosaic_Bilinear_OPT<Byte: FITSByte> : _Transformation {
      O x O
      ... O ...
      */
-    @inlinable
-    func head_plus(_ data: UnsafeBufferPointer<Byte>,
-              _ width: Int,
-              _ offset: Int) -> Float
+    private func head_plus(_ data: UnsafeBufferPointer<Byte>,
+                           _ width: Int,
+                           _ offset: Int) -> Float
     {
         // left
-        var sum = data[offset-1].bigEndian.floatnorm // left
-        sum += data[offset+1].bigEndian.floatnorm   // right
-        sum += data[offset+width].bigEndian.floatnorm // bottom
+        var sum = data[offset-1].bigEndian.float // left
+        sum += data[offset+1].bigEndian.float  // right
+        sum += data[offset+width].bigEndian.float // bottom
         
-        return sum / 3.0
+        return (add3 + sum) / max3
     }
     
     /**
@@ -329,17 +348,16 @@ public struct Demosaic_Bilinear_OPT<Byte: FITSByte> : _Transformation {
      ... O ...
      O x O
      */
-    @inlinable
-    func tail_plus(_ data: UnsafeBufferPointer<Byte>,
-              _ width: Int,
-              _ offset: Int) -> Float
+    private func tail_plus(_ data: UnsafeBufferPointer<Byte>,
+                           _ width: Int,
+                           _ offset: Int) -> Float
     {
         // left
-        var sum = data[offset-1].bigEndian.floatnorm // left
-        sum += data[offset+1].bigEndian.floatnorm   // right
-        sum += data[offset-width].bigEndian.floatnorm // top
+        var sum = data[offset-1].bigEndian.float // left
+        sum += data[offset+1].bigEndian.float   // right
+        sum += data[offset-width].bigEndian.float // top
         
-        return sum / 3.0
+        return (add3 + sum) / max3
     }
     
     /**
@@ -349,16 +367,15 @@ public struct Demosaic_Bilinear_OPT<Byte: FITSByte> : _Transformation {
      x O
      O ...
      */
-    @inlinable
-    func start_plus(_ data: UnsafeBufferPointer<Byte>,
-              _ width: Int,
-              _ offset: Int) -> Float
+    private func start_plus(_ data: UnsafeBufferPointer<Byte>,
+                            _ width: Int,
+                            _ offset: Int) -> Float
     {
-        var sum = data[offset+1].bigEndian.floatnorm   // right
-        sum += data[offset-width].bigEndian.floatnorm // top
-        sum += data[offset+width].bigEndian.floatnorm // bottom
+        var sum = data[offset+1].bigEndian.float   // right
+        sum += data[offset-width].bigEndian.float // top
+        sum += data[offset+width].bigEndian.float // bottom
         
-        return sum / 3.0
+        return (add3 + sum) / max3
     }
     
     /**
@@ -368,17 +385,16 @@ public struct Demosaic_Bilinear_OPT<Byte: FITSByte> : _Transformation {
      O x
      ... O.
      */
-    @inlinable
-    func end_plus(_ data: UnsafeBufferPointer<Byte>,
-              _ width: Int,
-              _ offset: Int) -> Float
+    private func end_plus(_ data: UnsafeBufferPointer<Byte>,
+                          _ width: Int,
+                          _ offset: Int) -> Float
     {
         // left
-        var sum = data[offset-1].bigEndian.floatnorm // left
-        sum += data[offset-width].bigEndian.floatnorm // top
-        sum += data[offset+width].bigEndian.floatnorm // bottom
+        var sum = data[offset-1].bigEndian.float // left
+        sum += data[offset-width].bigEndian.float // top
+        sum += data[offset+width].bigEndian.float // bottom
         
-        return sum / 3.0
+        return (add3 + sum) / max3
     }
     
     /**
@@ -387,16 +403,15 @@ public struct Demosaic_Bilinear_OPT<Byte: FITSByte> : _Transformation {
      x O
      O ...
      */
-    @inlinable
-    func head_start_plus(_ data: UnsafeBufferPointer<Byte>,
-              _ width: Int,
-              _ offset: Int) -> Float
+    private func head_start_plus(_ data: UnsafeBufferPointer<Byte>,
+                                 _ width: Int,
+                                 _ offset: Int) -> Float
     {
         // left
-        var sum = data[offset+1].bigEndian.floatnorm   // right
-        sum += data[offset+width].bigEndian.floatnorm // bottom
+        var sum = data[offset+1].bigEndian.float   // right
+        sum += data[offset+width].bigEndian.float // bottom
         
-        return sum / 2.0
+        return (add2 + sum) / max2
     }
     
     /**
@@ -405,73 +420,69 @@ public struct Demosaic_Bilinear_OPT<Byte: FITSByte> : _Transformation {
      O x
      ... O
      */
-    @inlinable
-    func head_end_plus(_ data: UnsafeBufferPointer<Byte>,
-              _ width: Int,
-              _ offset: Int) -> Float
-    {
-        // left
-        var sum = data[offset-1].bigEndian.floatnorm // left
-        sum += data[offset+width].bigEndian.floatnorm // bottom
-        
-        return sum / 2.0
-    }
-    
-    /**
-     computes average from a plus pattern
-     
-     O ...
-     x O
-     */
-    @inlinable
-    func tail_start_plus(_ data: UnsafeBufferPointer<Byte>,
-              _ width: Int,
-              _ offset: Int) -> Float
-    {
-        // left
-        var sum = data[offset+1].bigEndian.floatnorm   // right
-        sum += data[offset-width].bigEndian.floatnorm // top
-        
-        return sum / 2.0
-    }
-    
-    /**
-     computes average from a plus pattern
-     
-     ... O
-     O x
-     */
-    @inlinable
-    func tail_end_plus(_ data: UnsafeBufferPointer<Byte>,
-              _ width: Int,
-              _ offset: Int) -> Float
-    {
-        // left
-        var sum = data[offset-1].bigEndian.floatnorm // left
-        sum += data[offset-width].bigEndian.floatnorm // top
-        
-        return sum / 2.0
-    }
-    
-    /**
-     computes average from a cross pattern
-     
-     O ... O
-     ... x ...
-     O ... O
-     */
-    @inlinable
-    func cross(_ data: UnsafeBufferPointer<Byte>,
+    private func head_end_plus(_ data: UnsafeBufferPointer<Byte>,
                                _ width: Int,
                                _ offset: Int) -> Float
     {
+        // left
+        var sum = data[offset-1].bigEndian.float // left
+        sum += data[offset+width].bigEndian.float // bottom
         
-        var sum = data[offset-1-width].bigEndian.floatnorm // top left
-        sum += data[offset+1-width].bigEndian.floatnorm // top right
-        sum += data[offset-1+width].bigEndian.floatnorm // bottom left
-        sum += data[offset+1+width].bigEndian.floatnorm // bottom right
+        return (add2 + sum) / max2
+    }
+    
+    /**
+     computes average from a plus pattern
+     
+     O ...
+     x O
+     */
+    private func tail_start_plus(_ data: UnsafeBufferPointer<Byte>,
+                                 _ width: Int,
+                                 _ offset: Int) -> Float
+    {
+        // left
+        var sum = data[offset+1].bigEndian.float   // right
+        sum += data[offset-width].bigEndian.float // top
         
-        return sum / 4.0
+        return (add2 + sum) / max2
+    }
+    
+    /**
+     computes average from a plus pattern
+     
+     ... O
+     O x
+     */
+    private func tail_end_plus(_ data: UnsafeBufferPointer<Byte>,
+                               _ width: Int,
+                               _ offset: Int) -> Float
+    {
+        // left
+        var sum = data[offset-1].bigEndian.float // left
+        sum += data[offset-width].bigEndian.float // top
+        
+        return (add2 + sum) / max2
+    }
+    
+    /**
+     computes average from a cross pattern
+     
+     O ... O
+     ... x ...
+     O ... O
+     */
+    private func cross(_ data: UnsafeBufferPointer<Byte>,
+                       _ width: Int,
+                       _ offset: Int) -> Float
+    {
+        
+        var sum = data[offset-1-width].bigEndian.float // top left
+        sum += data[offset+1-width].bigEndian.float // top right
+        sum += data[offset-1+width].bigEndian.float // bottom left
+        sum += data[offset+1+width].bigEndian.float // bottom right
+        
+        return (add4 + sum) / max4
     }
     
     /**
@@ -480,16 +491,15 @@ public struct Demosaic_Bilinear_OPT<Byte: FITSByte> : _Transformation {
      ... x ...
      O ... O
      */
-    @inlinable
-    func head_cross(_ data: UnsafeBufferPointer<Byte>,
-               _ width: Int,
-               _ offset: Int) -> Float
+    private func head_cross(_ data: UnsafeBufferPointer<Byte>,
+                            _ width: Int,
+                            _ offset: Int) -> Float
     {
         
-        var sum = data[offset-1+width].bigEndian.floatnorm // bottom left
-        sum += data[offset+1+width].bigEndian.floatnorm // bottom right
+        var sum = data[offset-1+width].bigEndian.float // bottom left
+        sum += data[offset+1+width].bigEndian.float // bottom right
         
-        return sum / 2.0
+        return (add2 + sum) / max2
     }
     
     /**
@@ -498,35 +508,33 @@ public struct Demosaic_Bilinear_OPT<Byte: FITSByte> : _Transformation {
      O ... O
      ... x ...
      */
-    @inlinable
-    func tail_cross(_ data: UnsafeBufferPointer<Byte>,
-               _ width: Int,
-               _ offset: Int) -> Float
+    private func tail_cross(_ data: UnsafeBufferPointer<Byte>,
+                            _ width: Int,
+                            _ offset: Int) -> Float
     {
         
-        var sum = data[offset-1-width].bigEndian.floatnorm // top left
-        sum += data[offset+1-width].bigEndian.floatnorm // top right
+        var sum = data[offset-1-width].bigEndian.float // top left
+        sum += data[offset+1-width].bigEndian.float // top right
         
-        return sum / 2.0
+        return (add2 + sum) / max2
     }
     
     /**
      computes average from a cross pattern
      
      ... O
-      x ...
+     x ...
      ... O
      */
-    @inlinable
-    func start_cross(_ data: UnsafeBufferPointer<Byte>,
-               _ width: Int,
-               _ offset: Int) -> Float
+    private func start_cross(_ data: UnsafeBufferPointer<Byte>,
+                             _ width: Int,
+                             _ offset: Int) -> Float
     {
         
-        var sum = data[offset+1-width].bigEndian.floatnorm // top right
-        sum += data[offset+1+width].bigEndian.floatnorm // bottom right
+        var sum = data[offset+1-width].bigEndian.float // top right
+        sum += data[offset+1+width].bigEndian.float // bottom right
         
-        return sum / 2.0
+        return (add2 + sum) / max2
     }
     
     /**
@@ -536,16 +544,15 @@ public struct Demosaic_Bilinear_OPT<Byte: FITSByte> : _Transformation {
      ... x
      O ...
      */
-    @inlinable
-    func end_cross(_ data: UnsafeBufferPointer<Byte>,
-               _ width: Int,
-               _ offset: Int) -> Float
+    private func end_cross(_ data: UnsafeBufferPointer<Byte>,
+                           _ width: Int,
+                           _ offset: Int) -> Float
     {
         
-        var sum = data[offset-1-width].bigEndian.floatnorm // top left
-        sum += data[offset-1+width].bigEndian.floatnorm // bottom left
+        var sum = data[offset-1-width].bigEndian.float // top left
+        sum += data[offset-1+width].bigEndian.float // bottom left
         
-        return sum / 2.0
+        return (add2 + sum) / max2
     }
     
     /**
@@ -554,13 +561,14 @@ public struct Demosaic_Bilinear_OPT<Byte: FITSByte> : _Transformation {
      x ...
      ... O
      */
-    @inlinable
-    func head_start_cross(_ data: UnsafeBufferPointer<Byte>,
-               _ width: Int,
-               _ offset: Int) -> Float
+    private func head_start_cross(_ data: UnsafeBufferPointer<Byte>,
+                                  _ width: Int,
+                                  _ offset: Int) -> Float
     {
         
-        return data[offset+1+width].bigEndian.floatnorm // bottom right
+        let sum = data[offset+1+width].bigEndian.float // bottom right
+        
+        return (add1 + sum) / max1
     }
     
     /**
@@ -569,12 +577,13 @@ public struct Demosaic_Bilinear_OPT<Byte: FITSByte> : _Transformation {
      ... x
      O ...
      */
-    @inlinable
-    func head_end_cross(_ data: UnsafeBufferPointer<Byte>,
-               _ width: Int,
-               _ offset: Int) -> Float
+    private func head_end_cross(_ data: UnsafeBufferPointer<Byte>,
+                                _ width: Int,
+                                _ offset: Int) -> Float
     {
-        return data[offset-1+width].bigEndian.floatnorm // bottom left
+        let sum = data[offset-1+width].bigEndian.float // bottom left
+        
+        return (add1 + sum) / max1
     }
     
     /**
@@ -583,13 +592,14 @@ public struct Demosaic_Bilinear_OPT<Byte: FITSByte> : _Transformation {
      ... O
      x ...
      */
-    @inlinable
-    func tail_start_cross(_ data: UnsafeBufferPointer<Byte>,
-               _ width: Int,
-               _ offset: Int) -> Float
+    private func tail_start_cross(_ data: UnsafeBufferPointer<Byte>,
+                                  _ width: Int,
+                                  _ offset: Int) -> Float
     {
         
-        return data[offset+1-width].bigEndian.floatnorm // top right
+        let sum = data[offset+1-width].bigEndian.float // top right
+        
+        return (add1 + sum) / max1
     }
     
     /**
@@ -598,13 +608,14 @@ public struct Demosaic_Bilinear_OPT<Byte: FITSByte> : _Transformation {
      O ...
      ... x
      */
-    @inlinable
-    func tail_end_cross(_ data: UnsafeBufferPointer<Byte>,
-               _ width: Int,
-               _ offset: Int) -> Float
+    private func tail_end_cross(_ data: UnsafeBufferPointer<Byte>,
+                                _ width: Int,
+                                _ offset: Int) -> Float
     {
         
-        return data[offset-1-width].bigEndian.floatnorm // top left
+        let sum = data[offset-1-width].bigEndian.float // top left
+        
+        return (add1 + sum) / max1
     }
     
     /**
@@ -614,16 +625,15 @@ public struct Demosaic_Bilinear_OPT<Byte: FITSByte> : _Transformation {
      O x O
      ... ... ...
      */
-    @inlinable
-    func horizontal(_ data: UnsafeBufferPointer<Byte>,
-                                    _ width: Int,
-                                    _ offset: Int) -> Float
+    private func horizontal(_ data: UnsafeBufferPointer<Byte>,
+                            _ width: Int,
+                            _ offset: Int) -> Float
     {
         
-        var sum = data[offset-1].bigEndian.floatnorm // left
-        sum += data[offset+1].bigEndian.floatnorm // right
+        var sum = data[offset-1].bigEndian.float // left
+        sum += data[offset+1].bigEndian.float // right
         
-        return sum / 2.0
+        return (add2 + sum) / max2
     }
     
     /**
@@ -633,13 +643,14 @@ public struct Demosaic_Bilinear_OPT<Byte: FITSByte> : _Transformation {
      x O
      ... ...
      */
-    @inlinable
-    func start_horizontal(_ data: UnsafeBufferPointer<Byte>,
-                    _ width: Int,
-                    _ offset: Int) -> Float
+    private func start_horizontal(_ data: UnsafeBufferPointer<Byte>,
+                                  _ width: Int,
+                                  _ offset: Int) -> Float
     {
         
-        return data[offset+1].bigEndian.floatnorm // right
+        let sum = data[offset+1].bigEndian.float // right
+        
+        return (add1 + sum) / max1
     }
     
     /**
@@ -649,13 +660,14 @@ public struct Demosaic_Bilinear_OPT<Byte: FITSByte> : _Transformation {
      O x
      ... ...
      */
-    @inlinable
-    func end_horizontal(_ data: UnsafeBufferPointer<Byte>,
-                    _ width: Int,
-                    _ offset: Int) -> Float
+    private func end_horizontal(_ data: UnsafeBufferPointer<Byte>,
+                                _ width: Int,
+                                _ offset: Int) -> Float
     {
         
-        return data[offset+1].bigEndian.floatnorm // right
+        let sum = data[offset+1].bigEndian.float // right
+        
+        return (add1 + sum) / max1
     }
     
     /**
@@ -664,16 +676,15 @@ public struct Demosaic_Bilinear_OPT<Byte: FITSByte> : _Transformation {
      ... x ...
      ... O ...
      */
-    @inlinable
-    func vertical(_ data: UnsafeBufferPointer<Byte>,
-                                  _ width: Int,
-                                  _ offset: Int) -> Float
+    private func vertical(_ data: UnsafeBufferPointer<Byte>,
+                          _ width: Int,
+                          _ offset: Int) -> Float
     {
         
-        var sum = data[offset-width].bigEndian.floatnorm // top
-        sum += data[offset+width].bigEndian.floatnorm // bottom
+        var sum = data[offset-width].bigEndian.float // top
+        sum += data[offset+width].bigEndian.float // bottom
         
-        return sum / 2.0
+        return (add2 + sum) / max2
     }
     
     /**
@@ -681,13 +692,14 @@ public struct Demosaic_Bilinear_OPT<Byte: FITSByte> : _Transformation {
      ... x ...
      ... O ...
      */
-    @inlinable
-    func head_vertical(_ data: UnsafeBufferPointer<Byte>,
-                  _ width: Int,
-                  _ offset: Int) -> Float
+    private func head_vertical(_ data: UnsafeBufferPointer<Byte>,
+                               _ width: Int,
+                               _ offset: Int) -> Float
     {
         
-        return data[offset+width].bigEndian.floatnorm // bottom
+        let sum = data[offset+width].bigEndian.float // bottom
+        
+        return (add1 + sum) / max1
     }
     
     /**
@@ -695,13 +707,14 @@ public struct Demosaic_Bilinear_OPT<Byte: FITSByte> : _Transformation {
      ... O ...
      ... x ...
      */
-    @inlinable
-    func tail_vertical(_ data: UnsafeBufferPointer<Byte>,
-                  _ width: Int,
-                  _ offset: Int) -> Float
+    private func tail_vertical(_ data: UnsafeBufferPointer<Byte>,
+                               _ width: Int,
+                               _ offset: Int) -> Float
     {
         
-        return data[offset-width].bigEndian.floatnorm // top
+        let sum = data[offset-width].bigEndian.float // top
+        
+        return (add1 + sum) / max1
     }
     
     /**
@@ -710,25 +723,18 @@ public struct Demosaic_Bilinear_OPT<Byte: FITSByte> : _Transformation {
      ...  x  ...
      ... ... ...
      */
-    @inlinable
-    func native(_ data: UnsafeBufferPointer<Byte>,
-                       _ width: Int,
-                       _ offset: Int) -> Float
+    private func native(_ data: UnsafeBufferPointer<Byte>,
+                        _ width: Int,
+                        _ offset: Int) -> Float
     {
         
-        return data[offset].bigEndian.floatnorm // top
+        let sum = data[offset].bigEndian.float // top
+        
+        return (add1 + sum) / max1
     }
     
     
     public func targetDimensions(width: Int, height: Int) -> (width: Int, height: Int) {
         return (width,height)
-    }
-}
-
-extension FITSByte {
-    
-    public var floatnorm : Float {
-        
-        (32768 + self.float) / 65536
     }
 }
