@@ -28,110 +28,70 @@ import FITS
 
 extension AnyImageHDU {
     
-    
-    public func apply<T: Transformation>(_ transformation: T,
-                                  R: inout [Float],
-                                  G: inout [Float],
-                                  B: inout [Float])
-    {
+    /**
+     Renders the `DataUnit` into an `vImage_Buffer` by using the provieded `Decoder`
+     - Parameter decoder: the `ImageDecoder` to use
+     - Parameter resultHandler:
+     */
+    public func decode<Decoder: ImageDecoder, R>(_ decoder: Decoder.Type, _ parameter: Decoder.Paramter, _ resultHandler: (vImage_Buffer) throws -> R) throws -> R {
         
-        
-        guard let width = self.naxis(1), let height = self.naxis(2) , let bitpix = self.bitpix else {
-            fatalError("invalid image dimensions")
-        }
-        
-        let bzero = self.bzero ?? 0
-        let bscale = self.bscale ?? 1
-        
-        self.dataUnit?.withUnsafeBytes{ rawPtr in
-            
-            switch bitpix {
-            case .INT16:
-                transformation.perform(rawPtr.bindMemory(to: Int16.self), width, height, bzero, bscale, &R, &G, &B)
-            default:
-                fatalError("Not (yet) implemented")
-            }
-            
-        }
-    }
-    
-    public func render<T: Transformation>(_ transformation: T) throws -> CGImage
-    {
         guard let width = self.naxis(1), let height = self.naxis(2) else {
             fatalError("invalid image dimensions")
         }
+        let bscale : Float = self.bscale ?? 1
+        let bzero : Float = self.bzero ?? 0
         
-        let targetDimensions = transformation.targetDimensions(width: width, height: height)
-        let targetSize = targetDimensions.width * targetDimensions.height
-        
-        var A : [FITSByte_F] = .init(repeating: 0, count: targetSize)
-        var R : [FITSByte_F] = .init(repeating: 0, count: targetSize)
-        var G : [FITSByte_F] = .init(repeating: 0, count: targetSize)
-        var B : [FITSByte_F] = .init(repeating: 0, count: targetSize)
-        
-        self.apply(transformation, R: &R, G: &G, B: &B)
-        
-        
-        var finfo = CGBitmapInfo(rawValue: CGImageAlphaInfo.noneSkipFirst.rawValue)
-        finfo.insert(CGBitmapInfo.byteOrder32Little)
-        finfo.insert(CGBitmapInfo.floatComponents)
-        let rgbFormatF = vImage_CGImageFormat(bitsPerComponent: 32, bitsPerPixel: 128, colorSpace: CGColorSpaceCreateDeviceRGB(), bitmapInfo: finfo)!
-        
-        let rgbBuffer: vImage_Buffer =
-        try A.withUnsafeMutableBytes{ aptr in
-            try R.withUnsafeMutableBytes{ rptr in
-                try G.withUnsafeMutableBytes{ gptr in
-                    try B.withUnsafeMutableBytes{ bptr in
-                        
-                        var alpha = vImage_Buffer(data: aptr.baseAddress, height: vImagePixelCount(targetDimensions.height), width: vImagePixelCount(targetDimensions.width), rowBytes: targetDimensions.width*4)
-                        var red = vImage_Buffer(data: rptr.baseAddress, height: vImagePixelCount(targetDimensions.height), width: vImagePixelCount(targetDimensions.width), rowBytes: targetDimensions.width*4)
-                        var green = vImage_Buffer(data: gptr.baseAddress, height: vImagePixelCount(targetDimensions.height), width: vImagePixelCount(targetDimensions.width), rowBytes: targetDimensions.width*4)
-                        var blue = vImage_Buffer(data: bptr.baseAddress, height: vImagePixelCount(targetDimensions.height), width: vImagePixelCount(targetDimensions.width), rowBytes: targetDimensions.width*4)
-                        
-                        var rgbout = try vImage_Buffer(width: targetDimensions.width, height: targetDimensions.height, bitsPerPixel: 128)
-                        
-                        vImageConvert_PlanarFtoARGBFFFF(&alpha, &red, &green, &blue, &rgbout, 0)
-                        
-                        return rgbout
-                        
-                    }
-                }
-            }
-        }
-        return try rgbBuffer.createCGImage(format: rgbFormatF)
-    }
-    
-    public func render<T: _Transformation>(_ transformation: T) throws -> CGImage
-    {
-        guard let width = self.naxis(1), let height = self.naxis(2) else {
-            fatalError("invalid image dimensions")
-        }
-        
-        let targetDimensions = transformation.targetDimensions(width: width, height: height)
-        let targetSize = 3*targetDimensions.width * targetDimensions.height
-        
-        var out : [FITSByte_F] = .init(repeating: 0, count: targetSize)
+        var out : [Decoder.Out] = .init(repeating: Decoder.Out.zero, count: Decoder.Pixel.channels * width * height)
         
         guard let data = self.dataUnit else {
-            fatalError("NO DataUnit")
+            fatalError("There is no dataUnit to decode!")
         }
         
-        let rgbBuffer : vImage_Buffer = data.withUnsafeBytes{ inPtr in
-            return out.withUnsafeMutableBufferPointer { outPtr in
-                transformation.perform(inPtr.bindMemory(to: T.Byte.self), width, height, outPtr)
+        return try data.withUnsafeBytes{ dataPtr -> R in
+           try out.withUnsafeMutableBufferPointer{ outPtr -> R in
                 
-                return vImage_Buffer(data: outPtr.baseAddress, height: vImagePixelCount(targetDimensions.height), width: vImagePixelCount(targetDimensions.width), rowBytes: 3*4*targetDimensions.width)
-            }
-           
+                switch self.bitpix {
+                case .UINT8:
+                    let decoder = Decoder.init(parameter, width: width, height: height, bscale: bscale, bzero: bzero, range: Float(UInt8.max))
+                    decoder.decode(dataPtr.bindMemory(to: UInt8.self), outPtr)
+                case .INT16:
+                    let decoder = Decoder.init(parameter, width: width, height: height, bscale: bscale, bzero: bzero, range: Float(UInt16.max))
+                    decoder.decode(dataPtr.bindMemory(to: Int16.self), outPtr)
+                case .INT32:
+                    let decoder = Decoder.init(parameter, width: width, height: height, bscale: bscale, bzero: bzero, range: Float(UInt32.max))
+                    decoder.decode(dataPtr.bindMemory(to: Int32.self), outPtr)
+                case .INT64:
+                    let decoder = Decoder.init(parameter, width: width, height: height, bscale: bscale, bzero: bzero, range: Float(UInt64.max))
+                    decoder.decode(dataPtr.bindMemory(to: Int64.self), outPtr)
+                case .FLOAT32:
+                    let decoder = Decoder.init(parameter, width: width, height: height, bscale: bscale, bzero: bzero, range: 1.0)
+                    decoder.decode(dataPtr.bindMemory(to: Float.self), outPtr)
+                case .FLOAT64:
+                    let decoder = Decoder.init(parameter, width: width, height: height, bscale: bscale, bzero: bzero, range: 1.0)
+                    decoder.decode(dataPtr.bindMemory(to: Double.self), outPtr)
+                case .none:
+                    fatalError("Bitpix must be present")
+                }
+            
+            let buffer = vImage_Buffer(data: outPtr.baseAddress, height: vImagePixelCount(height), width: vImagePixelCount(width), rowBytes: Decoder.Out.bytes * Decoder.Pixel.channels * width)
+        
+            return try resultHandler(buffer)
+            
+           }
         }
-        
-        var finfo = CGBitmapInfo(rawValue: CGImageAlphaInfo.none.rawValue)
-        finfo.insert(CGBitmapInfo.byteOrder32Little)
-        finfo.insert(CGBitmapInfo.floatComponents)
-        let rgbFormat = vImage_CGImageFormat(bitsPerComponent: 32, bitsPerPixel: 96, colorSpace: CGColorSpaceCreateDeviceRGB(), bitmapInfo: finfo)!
-        
-        
-        return try rgbBuffer.createCGImage(format: rgbFormat)
     }
     
+    /**
+     Renders the `DataUnit` into an `CGImage` by using the provieded `Decoder`
+        - Parameter decoder: the `ImageDecoder` to use
+     */
+    public func decode<Decoder: ImageDecoder>(_ decoder: Decoder.Type, _ parameter: Decoder.Paramter) throws -> CGImage {
+        
+        try self.decode(decoder, parameter) { buffer in
+            
+            return try buffer.createCGImage(format: decoder.cgImageFormat)
+        }
+        
+    }
+
 }
