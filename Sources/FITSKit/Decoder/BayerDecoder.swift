@@ -1,6 +1,6 @@
 /*
  
- Copyright (c) <2020>
+ Copyright (c) <2021>
  
  Permission is hereby granted, free of charge, to any person obtaining a copy
  of this software and associated documentation files (the "Software"), to deal
@@ -29,19 +29,15 @@ import Foundation
  
  *Note*: Only implements RGGB and BGGR at the moment
  */
-public struct Demosaic_Bilinear_GCD : ImageDecoder {
+public struct BayerDecoder : ImageDecoderGCD {
     
     public typealias Paramter = CFA_Pattern
     public typealias Pixel = ARGB
     public typealias Out = Float
-    
-    private let queue = DispatchQueue(label: "Demosaic", qos: .userInitiated, attributes: .concurrent)
-    private let group = DispatchGroup()
-    private let threads : Int
-    
+
     private var pattern : CFA_Pattern
     
-    private var height1 : Int
+    internal var height1 : Int
     
     internal var width1 : Int
     private var width1p1 : Int
@@ -68,7 +64,7 @@ public struct Demosaic_Bilinear_GCD : ImageDecoder {
     private var add3 : Float
     private var add4 : Float
     
-    public init(_ parameter: CFA_Pattern, width: Int, height: Int, bscale: Float, bzero: Float, range: Float) {
+    public init<Byte: FITSByte>(_ parameter: CFA_Pattern, width: Int, height: Int, bscale: Float, bzero: Float, min: Byte, max: Byte) {
         self.pattern = parameter
 
         self.height1 = height
@@ -88,73 +84,52 @@ public struct Demosaic_Bilinear_GCD : ImageDecoder {
         
         self.scale = bscale
         
-        self.add1 = bzero
-        self.add2 = bzero * 2.0
-        self.add3 = bzero * 3.0
-        self.add4 = bzero * 4.0
+        self.add1 = bzero - (bzero + min.float * bscale)
+        self.max1 = (bzero + max.float * bscale) - (bzero + min.float * bscale)
         
-        self.max1 = range
-        self.max2 = range * 2.0
-        self.max3 = range * 3.0
-        self.max4 = range * 4.0
+        self.add2 = add1 * 2.0
+        self.add3 = add1 * 3.0
+        self.add4 = add1 * 4.0
         
-        self.threads = 4
+        self.max2 = max1 * 2.0
+        self.max3 = max1 * 3.0
+        self.max4 = max1 * 4.0
     }
     
-    public func decode<In: FITSByte>(_ dataUnit: UnsafeBufferPointer<In>, _ out: UnsafeMutableBufferPointer<Float>) {
+    public func block<In: FITSByte>(for thread: Int, of: Int,
+                      _ data: UnsafeBufferPointer<In>,
+                      _ out: UnsafeMutableBufferPointer<Float>){
         
-        switch pattern {
-        case .RGGB:
-            self.XGGY(dataUnit, out)
-        case .BGGR:
-            self.XGGY(dataUnit, out)
-        default:
-            fatalError("Not implemented")
-        }
+        let cap = height1/of
         
-    }
-    
-    func XGGY<Byte: FITSByte>(_ data: UnsafeBufferPointer<Byte>,
-              _ out: UnsafeMutableBufferPointer<Float>)
-    {
-        let cap = height1/threads
+        switch thread {
         
-        for idx in 0..<threads {
-        
-            let worker = DispatchWorkItem{
-                
-                switch idx {
-                
-                case 0:
-                    XGGYhead(data, out)
-                    
-                    for y in stride(from: 2, to: cap, by: 2) {
-                        
-                        XGGYmiddle(y: y, data, out)
-                    }
-                case threads-1:
-                    let align = cap%2
-                    
-                    for y in stride(from: (threads-1)*cap+align, to:height1-2 , by: 2) {
-                        
-                        XGGYmiddle(y: y, data, out)
-                    }
-                    XGGYtail(data, out)
-                default:
-                    let align = (idx*cap)%2
-                    
-                    for y in stride(from: idx*cap+align, to: (idx+1)*cap, by: 2) {
-                        
-                        XGGYmiddle(y: y, data, out)
-                    }
-                }
-            }
+        case 0:
+            XGGYhead(data, out)
             
-            queue.async(group: group, execute: worker)
+            for y in stride(from: 2, to: cap, by: 2) {
+                
+                XGGYmiddle(y: y, data, out)
+            }
+        case of-1:
+            let align = cap%2
+            
+            for y in stride(from: (of-1)*cap+align, to:height1-2 , by: 2) {
+                
+                XGGYmiddle(y: y, data, out)
+            }
+            XGGYtail(data, out)
+        default:
+            let align = (thread*cap)%2
+            
+            for y in stride(from: thread*cap+align, to: (thread+1)*cap, by: 2) {
+                
+                XGGYmiddle(y: y, data, out)
+            }
         }
         
-        group.wait()
     }
+    
     
     public func targetDimensions(width: Int, height: Int) -> (width: Int, height: Int) {
         return (width,height)
@@ -162,7 +137,7 @@ public struct Demosaic_Bilinear_GCD : ImageDecoder {
     
 }
 
-extension Demosaic_Bilinear_GCD {
+extension BayerDecoder {
     
     /**
      computes average from a plus pattern
@@ -542,11 +517,24 @@ extension Demosaic_Bilinear_GCD {
         
         return (add1 + sum) / max1
     }
-    
-    
 }
 
-extension Demosaic_Bilinear_GCD {
+extension BayerDecoder {
+    
+    private func head<Byte: FITSByte>(_ data: UnsafeBufferPointer<Byte>, _ out: UnsafeMutableBufferPointer<Float>){
+    }
+    
+    private func middle<Byte: FITSByte>(_ data: UnsafeBufferPointer<Byte>, _ out: UnsafeMutableBufferPointer<Float>){
+    }
+    
+    private func end<Byte: FITSByte>(_ data: UnsafeBufferPointer<Byte>, _ out: UnsafeMutableBufferPointer<Float>){
+    }
+}
+
+
+
+//MARK:- Decode RGGB
+extension BayerDecoder {
     
     private func XGGYhead<Byte: FITSByte>(_ data: UnsafeBufferPointer<Byte>, _ out: UnsafeMutableBufferPointer<Float>){
         
@@ -739,6 +727,204 @@ extension Demosaic_Bilinear_GCD {
         out[pixel+width4p5] = tail_end_cross(data, offset+width1p1)
         out[pixel+width4p6] = tail_end_plus(data, offset+width1p1)
         out[pixel+width4p7] = native(data, offset+width1p1)
+    }
+    
+}
+
+//MARK:- Decode GRBG
+extension BayerDecoder {
+    
+    private func GXYGhead<Byte: FITSByte>(_ data: UnsafeBufferPointer<Byte>, _ out: UnsafeMutableBufferPointer<Float>){
+        
+        var offset = 0
+        var pixel = 0
+        
+        out[pixel+1] = start_horizontal(data, offset)
+        out[pixel+2] = native(data, offset)
+        out[pixel+3] = head_vertical(data, offset)
+        
+        out[pixel+5] = native(data, offset+1)
+        out[pixel+6] = head_plus(data, offset+1)
+        out[pixel+7] = head_cross(data, offset+1)
+        
+        out[pixel+width4p1] = start_cross(data, offset+width1)
+        out[pixel+width4p2] = start_plus(data, offset+width1)
+        out[pixel+width4p3] = native(data, offset+width1)
+        
+        out[pixel+width4p5] = vertical(data, offset+width1p1)
+        out[pixel+width4p6] = native(data, offset+width1p1)
+        out[pixel+width4p7] = horizontal(data, offset+width1p1)
+        
+        offset += 2
+        pixel += 8
+        
+        for _ in stride(from: 2, to: width1-2, by: 2) {
+            
+            out[pixel+1] = horizontal(data, offset)
+            out[pixel+2] = native(data, offset)
+            out[pixel+3] = head_vertical(data, offset)
+            
+            out[pixel+5] = native(data, offset+1)
+            out[pixel+6] = head_plus(data, offset+1)
+            out[pixel+7] = head_cross(data, offset+1)
+            
+            out[pixel+width4p1] = cross(data, offset+width1)
+            out[pixel+width4p2] = plus(data, offset+width1)
+            out[pixel+width4p3] = native(data, offset+width1)
+            
+            out[pixel+width4p5] = vertical(data, offset+width1p1)
+            out[pixel+width4p6] = native(data, offset+width1p1)
+            out[pixel+width4p7] = horizontal(data, offset+width1p1)
+            
+            offset += 2
+            pixel += 8
+        }
+        
+        out[pixel+1] = horizontal(data, offset)
+        out[pixel+2] = native(data, offset)
+        out[pixel+3] = head_vertical(data, offset)
+        
+        out[pixel+5] = native(data, offset+1)
+        out[pixel+6] = head_end_plus(data, offset+1)
+        out[pixel+7] = head_end_cross(data, offset+1)
+        
+        out[pixel+width4p1] = cross(data, offset+width1)
+        out[pixel+width4p2] = plus(data, offset+width1)
+        out[pixel+width4p3] = native(data, offset+width1)
+        
+        out[pixel+width4p4] = vertical(data, offset+width1p1)
+        out[pixel+width4p5] = native(data, offset+width1p1)
+        out[pixel+width4p6] = end_horizontal(data, offset+width1p1)
+    }
+    
+    private func GXYGmiddle<Byte: FITSByte>(y: Int, _ data: UnsafeBufferPointer<Byte>, _ out: UnsafeMutableBufferPointer<Float>){
+        
+        // Special treatment of the first quadrant
+        var offset = y*width1
+        var pixel = offset * 4
+        
+        out[pixel+1] = start_horizontal(data, offset)
+        out[pixel+2] = native(data, offset)
+        out[pixel+3] = vertical(data, offset)
+        
+        out[pixel+5] = native(data, offset+1)
+        out[pixel+6] = plus(data, offset+1)
+        out[pixel+7] = cross(data, offset+1)
+        
+        out[pixel+width4p1] = start_cross(data, offset+width1)
+        out[pixel+width4p2] = start_plus(data, offset+width1)
+        out[pixel+width4p3] = native(data, offset+width1)
+        
+        out[pixel+width4p5] = vertical(data, offset+width1p1)
+        out[pixel+width4p6] = native(data, offset+width1p1)
+        out[pixel+width4p7] = horizontal(data, offset+width1p1)
+        
+        offset += 2
+        pixel += 8
+        
+        // run unchecked for all other elements of the row
+        for _ in stride(from: 2, to: width1-2, by: 2) {
+            
+            out[pixel+1] = horizontal(data, offset)
+            out[pixel+2] = native(data, offset)
+            out[pixel+3] = vertical(data, offset)
+            
+            out[pixel+5] = native(data, offset+1)
+            out[pixel+6] = plus(data, offset+1)
+            out[pixel+7] = cross(data, offset+1)
+            
+            out[pixel+width4p1] = cross(data, offset+width1)
+            out[pixel+width4p2] = plus(data, offset+width1)
+            out[pixel+width4p3] = native(data, offset+width1)
+            
+            out[pixel+width4p5] = vertical(data, offset+width1p1)
+            out[pixel+width4p6] = native(data, offset+width1p1)
+            out[pixel+width4p7] = horizontal(data, offset+width1p1)
+            
+            offset += 2
+            pixel += 8
+            
+        }
+        
+        // Special treatment of the last quadrant
+        out[pixel+1] = horizontal(data, offset)
+        out[pixel+2] = native(data, offset)
+        out[pixel+3] = vertical(data, offset)
+        
+        out[pixel+5] = native(data, offset+1)
+        out[pixel+6] = end_plus(data, offset+1)
+        out[pixel+7] = end_cross(data, offset+1)
+        
+        out[pixel+width4p1] = cross(data, offset+width1)
+        out[pixel+width4p2] = plus(data, offset+width1)
+        out[pixel+width4p3] = native(data, offset+width1)
+        
+        out[pixel+width4p4] = vertical(data, offset+width1p1)
+        out[pixel+width4p5] = native(data, offset+width1p1)
+        out[pixel+width4p6] = end_horizontal(data, offset+width1p1)
+    }
+    
+    private func GXYGtail<Byte: FITSByte>(_ data: UnsafeBufferPointer<Byte>, _ out: UnsafeMutableBufferPointer<Float>){
+        
+        var offset = (height1-2)*width1
+        var pixel = offset * 4
+        
+        out[pixel+1] = start_horizontal(data, offset)
+        out[pixel+2] = native(data, offset)
+        out[pixel+3] = vertical(data, offset)
+        
+        out[pixel+5] = native(data, offset+1)
+        out[pixel+6] = tail_start_plus(data, offset+1)
+        out[pixel+7] = tail_start_cross(data, offset+1)
+        
+        out[pixel+width4p1] = tail_cross(data, offset+width1)
+        out[pixel+width4p2] = tail_plus(data, offset+width1)
+        out[pixel+width4p3] = native(data, offset+width1)
+        
+        out[pixel+width4p5] = tail_vertical(data, offset+width1p1)
+        out[pixel+width4p6] = native(data, offset+width1p1)
+        out[pixel+width4p7] = horizontal(data, offset+width1p1)
+        
+        offset += 2
+        pixel += 8
+        
+        for _ in stride(from: 2, to: width1-2, by: 2) {
+            
+            out[pixel+1] = horizontal(data, offset)
+            out[pixel+2] = native(data, offset)
+            out[pixel+3] = vertical(data, offset)
+            
+            out[pixel+5] = native(data, offset+1)
+            out[pixel+6] = plus(data, offset+1)
+            out[pixel+7] = cross(data, offset+1)
+            
+            out[pixel+width4p1] = tail_cross(data, offset+width1)
+            out[pixel+width4p2] = tail_plus(data, offset+width1)
+            out[pixel+width4p3] = native(data, offset+width1)
+            
+            out[pixel+width4p5] = tail_vertical(data, offset+width1p1)
+            out[pixel+width4p6] = native(data, offset+width1p1)
+            out[pixel+width4p7] = horizontal(data, offset+width1p1)
+            
+            offset += 2
+            pixel += 8
+        }
+        
+        out[pixel+1] = horizontal(data, offset)
+        out[pixel+2] = native(data, offset)
+        out[pixel+3] = vertical(data, offset)
+        
+        out[pixel+5] = native(data, offset+1)
+        out[pixel+6] = end_plus(data, offset+1)
+        out[pixel+7] = end_cross(data, offset+1)
+        
+        out[pixel+width4p1] = tail_end_cross(data, offset+width1)
+        out[pixel+width4p2] = tail_end_plus(data, offset+width1)
+        out[pixel+width4p3] = native(data, offset+width1)
+        
+        out[pixel+width4p5] = tail_vertical(data, offset+width1p1)
+        out[pixel+width4p6] = native(data, offset+width1p1)
+        out[pixel+width4p7] = end_horizontal(data, offset+width1p1)
     }
     
 }

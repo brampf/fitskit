@@ -1,6 +1,6 @@
 /*
  
- Copyright (c) <2020>
+ Copyright (c) <2021>
  
  Permission is hereby granted, free of charge, to any person obtaining a copy
  of this software and associated documentation files (the "Software"), to deal
@@ -22,34 +22,13 @@
  
  */
 import Foundation
-import FITS
 
-public struct Grayscale : ImageDecoder {
-    public typealias Out = Float
-    public typealias Pixel = Mono
-    public typealias Paramter = Void
 
-    private let width : Int
-    private let height : Int
-    private let bscale : Float
-    private let bzero : Float
-    private let range : Float
+public enum FITSKitFail : LocalizedError {
     
-    public init(_ parameter: Void, width: Int, height: Int, bscale: Float, bzero: Float, range: Float) {
-        self.width = width
-        self.height = height
-        self.bscale = bscale
-        self.bzero = bzero
-        self.range = range
-    }
-    
-    public func decode<In: FITSByte>(_ dataUnit: UnsafeBufferPointer<In>, _ out: UnsafeMutableBufferPointer<Float>) {
-        
-        for offset in 0..<dataUnit.count {
-            
-            out[offset] = dataUnit[offset].bigEndian.normalize(bzero, bscale, .min, .max)
-        }
-        
-    }
+    case unsupportedFormat(String)
+    case invalidMetadata(String)
+    case unsupportedGeometry(String)
+    case missingData(String)
     
 }

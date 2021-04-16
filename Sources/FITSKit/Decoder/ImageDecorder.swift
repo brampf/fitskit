@@ -1,6 +1,6 @@
 /*
  
- Copyright (c) <2020>
+ Copyright (c) <2021>
  
  Permission is hereby granted, free of charge, to any person obtaining a copy
  of this software and associated documentation files (the "Software"), to deal
@@ -32,14 +32,14 @@ public protocol ImageDecoder {
     associatedtype Pixel : PixelFormat
     associatedtype Paramter
     
-    init(_ parameter: Paramter, width: Int, height: Int, bscale: Float, bzero: Float, range: Float)
+    init(_ parameter: Paramter, width: Int, height: Int, bscale: Float, bzero: Float, min: Float, max: Float)
     
     func decode<In: FITSByte>(_ dataUnit: UnsafeBufferPointer<In>, _ out: UnsafeMutableBufferPointer<Out>)
 }
 
 extension ImageDecoder {
     
-    static var cgImageFormat : vImage_CGImageFormat {
+    public static var cgImageFormat : vImage_CGImageFormat {
         
         
         var finfo = CGBitmapInfo(rawValue: Pixel.alpha.rawValue)
@@ -62,6 +62,5 @@ extension ImageDecoder {
         }
         
         return vImage_CGImageFormat(bitsPerComponent: bitsPerComponent, bitsPerPixel: bitsPerPixel, colorSpace: Pixel.colorSpace, bitmapInfo: finfo)!
-        
     }
 }

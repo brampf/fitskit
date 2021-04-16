@@ -1,6 +1,6 @@
 /*
  
- Copyright (c) <2020>
+ Copyright (c) <2021>
  
  Permission is hereby granted, free of charge, to any person obtaining a copy
  of this software and associated documentation files (the "Software"), to deal
@@ -48,5 +48,11 @@ public struct RGB : PixelFormat {
 public struct ARGB : PixelFormat {
     public static let channels: Int = 4
     public static let alpha: CGImageAlphaInfo = .noneSkipFirst
+    public static let colorSpace: CGColorSpace = CGColorSpaceCreateDeviceRGB()
+}
+
+public struct RGBA : PixelFormat {
+    public static let channels: Int = 4
+    public static let alpha: CGImageAlphaInfo = .noneSkipLast
     public static let colorSpace: CGColorSpace = CGColorSpaceCreateDeviceRGB()
 }

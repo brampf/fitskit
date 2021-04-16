@@ -24,29 +24,8 @@
 import FITS
 import Foundation
 
+@available(*, deprecated, message: "Obsoelte")
 public struct FITSByteTool {
-    
-    /**
-     Converts the `Data` to elements of the desired `DataLayout`
-     
-     */
-    public static func asLittleEndian<D: FITSByte>(_ data: inout DataUnit) -> [D]{
-        
-        return data.withUnsafeBytes { mptr8 in
-            mptr8.bindMemory(to: D.self).map{$0.littleEndian}
-        }
-    }
-    
-    /**
-     Converts the `Data` to elements of the desired `DataLayout`
-     
-     */
-    public static func asBigEndian<D: FITSByte>(_ data: inout DataUnit) -> [D]{
-        
-        return data.withUnsafeBytes { mptr8 in
-            mptr8.bindMemory(to: D.self).map{$0.bigEndian}
-        }
-    }
     
     /**
      Converts the `Data` to a  sequence of `FITSByte_F`
@@ -90,6 +69,7 @@ public struct FITSByteTool {
      GGG      >       RGB
      BBB                 RGB
      */
+    @available(*, deprecated, message: "Decoding is done via the RGB Decoder")
     public static func RGB<D: FITSByte>(_ data: inout DataUnit, width: Int, height: Int) -> [D] {
         
         let layerSize = width * height
@@ -113,17 +93,18 @@ public struct FITSByteTool {
      GGG      >       RGB
      BBB                 RGB
      */
+    @available(*, deprecated, message: "Decoding is done via the RGB Decoder")
     public static func RGBFFF(_ data: inout DataUnit, width: Int, height: Int, bscale: Float, bzero: Float, _ bitpix: BITPIX) -> [FITSByte_F] {
         
         let layerSize = width * height
         
         let tmp = normalize_F(&data, width: width, height: height, bscale: bscale, bzero: bzero, bitpix)
         
-        var array : [Float] = .init(repeating: FITSByte_F.zero, count: tmp.count)
-        for idx in stride(from: 0, to: tmp.count-3, by: 3) {
-            array[idx+0] = tmp[idx/3+layerSize*0]
-            array[idx+1] = tmp[idx/3+layerSize*1]
-            array[idx+2] = tmp[idx/3+layerSize*2]
+        var array : [Float] = .init(repeating: FITSByte_F.zero, count: data.count)
+        for idx in stride(from: 0, to: data.count-3, by: 3) {
+            array[idx+0] = tmp[idx/3+layerSize*0].normalize(bzero, bscale, .min, .max)
+            array[idx+1] = tmp[idx/3+layerSize*1].normalize(bzero, bscale, .min, .max)
+            array[idx+2] = tmp[idx/3+layerSize*2].normalize(bzero, bscale, .min, .max)
         }
         return array
     }
@@ -135,6 +116,7 @@ public struct FITSByteTool {
      GGG      >       RGBA
      BBB                 RGBA
      */
+    @available(*, deprecated, message: "Decoding is done via the RGB Decoder")
     public static func RGBAFFFF(_ data: inout DataUnit, width: Int, height: Int, bscale: Float, bzero: Float, _ bitpix: BITPIX) -> [FITSByte_F] {
         
         let layerSize = width * height
@@ -143,9 +125,9 @@ public struct FITSByteTool {
         
         var array : [Float] = .init(repeating: FITSByte_F.zero, count: width*height*4)
         for idx in stride(from: 0, to: array.count-4, by: 4) {
-            array[idx+0] = tmp[idx/4+layerSize*0]
-            array[idx+1] = tmp[idx/4+layerSize*1]
-            array[idx+2] = tmp[idx/4+layerSize*2]
+            array[idx+0] = tmp[idx/4+layerSize*0].normalize(bzero, bscale, .min, .max)
+            array[idx+1] = tmp[idx/4+layerSize*1].normalize(bzero, bscale, .min, .max)
+            array[idx+2] = tmp[idx/4+layerSize*2].normalize(bzero, bscale, .min, .max)
             array[idx+3] = Float.zero
         }
         return array
@@ -154,7 +136,8 @@ public struct FITSByteTool {
 
 extension Float {
     
-    /// initializer who accepts  `BITPIX`
+    @available(*, deprecated, message: "Code moved to FITSByte.float")
+    /// initializer which accepts  any `FITSByte`
     public init<D: FITSByte>(bitpix: D) {
         
         switch D.self {

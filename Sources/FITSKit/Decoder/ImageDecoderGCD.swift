@@ -1,6 +1,6 @@
 /*
  
- Copyright (c) <2020>
+ Copyright (c) <2021>
  
  Permission is hereby granted, free of charge, to any person obtaining a copy
  of this software and associated documentation files (the "Software"), to deal
@@ -21,14 +21,38 @@
  SOFTWARE.
  
  */
+
+import FITS
 import Foundation
 
+let GDC_THREADS = ProcessInfo().processorCount
+let GCD_QUEUE = DispatchQueue(label: "FITSKit_Decoder", qos: .userInitiated, attributes: .concurrent, autoreleaseFrequency: .workItem, target: nil)
 
-public enum AcceleratedFail : LocalizedError {
+public protocol ImageDecoderGCD : ImageDecoder {
     
-    case unsupportedFormat(String)
-    case invalidMetadata(String)
-    case unsupportedGeometry(String)
-    case missingData(String)
+    func block<In: FITSByte>(for thread: Int, of: Int,
+               _ data: UnsafeBufferPointer<In>,
+               _ out: UnsafeMutableBufferPointer<Float>)
+    
+}
+
+extension ImageDecoderGCD  {
+    
+    public func decode<In: FITSByte>(_ dataUnit: UnsafeBufferPointer<In>, _ out: UnsafeMutableBufferPointer<Float>) {
+        
+        let group = DispatchGroup()
+        
+        for idx in 0..<GDC_THREADS {
+            
+            let worker = DispatchWorkItem{
+                
+                self.block(for: idx, of: GDC_THREADS, dataUnit, out)
+            }
+            
+            GCD_QUEUE.async(group: group, execute: worker)
+        }
+        
+        group.wait()
+    }
     
 }
