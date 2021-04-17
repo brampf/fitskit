@@ -282,7 +282,7 @@ final class DecoderTests: XCTestCase {
             32767,32767,32767,32767,32767,32767,32767,32767,32767,32767
         ].bigEndian
         
-        let decoder = RGB_Decoder<Mono>((), width: 10, height: 10, bscale: 1, bzero: 0, min: -32768, max: 32767)
+        let decoder = RGB_Decoder<Mono>((), width: 10, height: 10, bscale: 1, bzero: 0, min: -32767, max: 32767)
         
         var out : [Float] = .init(repeating: 0, count: 100)
         
@@ -292,11 +292,10 @@ final class DecoderTests: XCTestCase {
             }
         }
         
-        print(out)
-        
         var expectation : Float = (0.0 * 0.21126)
-        expectation += (0.5000076 * 0.7152)
+        expectation += (0.5000076 * 0.7151)
         expectation += (1.0 * 0.0722)
+        expectation = 0.42979676
         
         XCTAssertEqual(out[0], expectation)
         XCTAssertEqual(out[1], expectation)
@@ -315,5 +314,73 @@ final class DecoderTests: XCTestCase {
         
     }
     
-    
+    func testRGGBDecoder() {
+        
+        // R: 60%, G:20% B: 40%
+        
+        let raw : [UInt8] = [
+            153, 51, 153, 51, 153, 51, 153, 51, 153, 51, 153, 51, 153, 51, 153, 51,
+            51, 102, 51, 102, 51, 102, 51, 102, 51, 102, 51, 102, 51, 102, 51, 102,
+            153, 51, 153, 51, 153, 51, 153, 51, 153, 51, 153, 51, 153, 51, 153, 51,
+            51, 102, 51, 102, 51, 102, 51, 102, 51, 102, 51, 102, 51, 102, 51, 102,
+            153, 51, 153, 51, 153, 51, 153, 51, 153, 51, 153, 51, 153, 51, 153, 51,
+            51, 102, 51, 102, 51, 102, 51, 102, 51, 102, 51, 102, 51, 102, 51, 102,
+            153, 51, 153, 51, 153, 51, 153, 51, 153, 51, 153, 51, 153, 51, 153, 51,
+            51, 102, 51, 102, 51, 102, 51, 102, 51, 102, 51, 102, 51, 102, 51, 102,
+            153, 51, 153, 51, 153, 51, 153, 51, 153, 51, 153, 51, 153, 51, 153, 51,
+            51, 102, 51, 102, 51, 102, 51, 102, 51, 102, 51, 102, 51, 102, 51, 102,
+            153, 51, 153, 51, 153, 51, 153, 51, 153, 51, 153, 51, 153, 51, 153, 51,
+            51, 102, 51, 102, 51, 102, 51, 102, 51, 102, 51, 102, 51, 102, 51, 102,
+            153, 51, 153, 51, 153, 51, 153, 51, 153, 51, 153, 51, 153, 51, 153, 51,
+            51, 102, 51, 102, 51, 102, 51, 102, 51, 102, 51, 102, 51, 102, 51, 102,
+            153, 51, 153, 51, 153, 51, 153, 51, 153, 51, 153, 51, 153, 51, 153, 51,
+            51, 102, 51, 102, 51, 102, 51, 102, 51, 102, 51, 102, 51, 102, 51, 102
+        ].bigEndian
+        
+        let decoder = BayerDecoder(.RGGB, width: 16, height: 8, bscale: 1, bzero: 0, min: 0, max: 255)
+        
+        var out : [Float] = .init(repeating: 0, count: 4*16*8)
+        
+        raw.withUnsafeBufferPointer{ rawPtr in
+            out.withUnsafeMutableBufferPointer{ ptr in
+                decoder.decode(rawPtr, ptr)
+            }
+        }
+        
+        let tl_r : Float = 0.6
+        let tr_r : Float = (0.6+0.6)/2
+        let bl_r : Float = (0.6+0.6)/2
+        let br_r : Float = (0.6+0.6+0.6+0.6)/4
+        
+        let tl_g : Float = (0.2+0.2+0.2+0.2)/4
+        let tr_g : Float = 0.2
+        let bl_g : Float = 0.2
+        let br_g : Float = (0.2+0.2+0.2+0.2)/4
+        
+        let tl_b : Float = (0.4+0.4+0.4+0.4)/4
+        let tr_b : Float = (0.4+0.4)/2
+        let bl_b : Float = (0.4+0.4)/2
+        let br_b : Float = 0.4
+        
+        XCTAssertEqual(out[72], 0)
+        XCTAssertEqual(out[73], tl_r)
+        XCTAssertEqual(out[74], tl_g)
+        XCTAssertEqual(out[75], tl_b)
+        
+        XCTAssertEqual(out[76], 0)
+        XCTAssertEqual(out[77], tr_r)
+        XCTAssertEqual(out[78], tr_g)
+        XCTAssertEqual(out[79], tr_b)
+        
+        XCTAssertEqual(out[136], 0)
+        XCTAssertEqual(out[137], bl_r)
+        XCTAssertEqual(out[138], bl_g)
+        XCTAssertEqual(out[139], bl_b)
+        
+        XCTAssertEqual(out[140], 0)
+        XCTAssertEqual(out[141], br_r)
+        XCTAssertEqual(out[142], br_g)
+        XCTAssertEqual(out[143], br_b)
+        
+    }
 }

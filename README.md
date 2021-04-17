@@ -32,12 +32,12 @@ FITSKit is a highly plattform depenedend library. It compiles and runs exclusive
     * Image format conversion using Accelerate
     * [x| BITPIX 8 support
     * [x] BITPIX 16 support
-    * [] BITPIX 32 support
-    * [] BITPIX 64 support
+    * [x] BITPIX 32 support
+    * [x] BITPIX 64 support
     * [x] BITPIX -32 support
-    * [] BITPIX -64 support
+    * [x] BITPIX -64 support
 * Native code
-    * Swift 5.2
+    * Swift 5.3+
     * Compiles for macCatalyst
     * Compiles for iPadOS / iOS
 
@@ -60,14 +60,50 @@ then simply add the `FITSKit` import to your target
 
 ## Documentation
 
-#### Rendering Mono
+There are several decoders to decode the raw image data of an FITS `DataUnit` into either an `CGImage` or into an `vImage_Buffer` 
+ * [GrayscaleDecoder](Sources/FITSKit/Decoder/GrayscaleDecoder.swift) : Renders grayscale images from two-dimensional data
+ * [RGBDecoder](Sources/FITSKit/Decoder/RGBDecoder.swift) : Renders RGB images from tree-dimensional data
+ * [BayerDecoder](Sources/FITSKit/Decoder/BayerDecoder.swift) : Renders RGB images from two-dimensional data
+ 
+ **Please note:** Decoders only translate the raw byte patterns into processable images and does not apply color correction of any kind.
+
+#### Don't care, just give me a picture, alright?
 ```swift
 import FITSKit
 
-// crates core image reference
-let cgimage = fitsFile.prime.image { error in
-    // print error messages
-    print(error)
+let image = try file.prime.decode()
+```
+
+#### Grayscale Decoder
+Applicable on two-dimensional (NAXIS == 2) data units
+```swift
+import FITSKit
+
+let image = try file.prime.decode(GrayscaleDecoder.self, ())
+```
+
+#### RGB Decoder
+Applicable on three-dimensional (NAXIS == 3) data units
+```swift
+import FITSKit
+
+let image = try file.prime.decode(RGB_Decoder<RGB>.self, ())
+}
+```
+The RGB Decoder allows parametrization of the output and can also decode grayscale images 
+```swift
+import FITSKit
+
+let image = try file.prime.decode(RGB_Decoder<Mono>.self, ())
+}
+```
+
+#### Bayer Decoder (De-Bayering / Demosaic)
+Applicable on two-dimensional (NAXIS == 2) data units
+```swift
+import FITSKit
+
+let image = try file.prime.decode(BayerDecoder.self, .RGGB)
 }
 ```
 
@@ -75,4 +111,4 @@ let cgimage = fitsFile.prime.image { error in
 ## License
 
 MIT license; see [LICENSE](LICENSE.md).
-(c) 2020
+(c) 2021

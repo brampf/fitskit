@@ -28,6 +28,10 @@ import FITS
 
 extension AnyImageHDU {
     
+    /**
+     Autoselects an approriate decoder for the dataUnit based on the metadata proficed in the headerUnit
+     - Returns: a rendered `CGImage`
+     */
     public func decode() throws -> CGImage {
         
         return try self.decode { buffer, format in
@@ -35,6 +39,12 @@ extension AnyImageHDU {
         }
     }
         
+    /**
+     Autoselects an approriate decoder for the dataUnit based on the metadata proficed in the headerUnit
+    
+     - Parameter resultHandler: handler to process the `vImage_Buffer` and `vImage_CGImageFormat`
+     - Returns: the result of the resultHandler
+     */
     public func decode<R>( _ resultHandler: (vImage_Buffer, vImage_CGImageFormat) throws -> R) throws -> R {
         
         if let pat : String = self.headerUnit["BAYERPAT"], pat.lowercased().contains("rggb") {
