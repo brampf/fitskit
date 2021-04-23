@@ -25,17 +25,18 @@ import FITS
 import Foundation
 
 /**
- Demosaics the picture according to the bayer filter provided as `Parameter`
+ Demosaics an RGGB encoded image file according to "HIGH-QUALITY LINEAR INTERPOLATION
+ FOR DEMOSAICING OF BAYER-PATTERNED COLOR IMAGES" by  Henrique S. Malvar, Li-wei He, and Ross Cutler
  
  *Note*: Only implements RGGB and BGGR at the moment
  */
-public struct BayerDecoder : ImageDecoderGCD {
+public struct HIQLBayerDecoder : ImageDecoderGCD {
     
-    public typealias Paramter = CFA_Pattern
+    public typealias Paramter = Void
     public typealias Pixel = ARGB
     public typealias Out = Float
-
-    private var pattern : CFA_Pattern
+    
+    private var pattern : CFA_Pattern = .RGGB
     
     internal var height1 : Int
     
@@ -43,6 +44,8 @@ public struct BayerDecoder : ImageDecoderGCD {
     private var width1p1 : Int
     private var width1m1 : Int
     
+    private var width2 : Int
+
     private var width4 : Int
     private var width4p1 : Int
     private var width4p2 : Int
@@ -64,15 +67,17 @@ public struct BayerDecoder : ImageDecoderGCD {
     private var add2 : Float
     private var add3 : Float
     private var add4 : Float
+    private var add8 : Float
     
-    public init<Byte: FITSByte>(_ parameter: CFA_Pattern, width: Int, height: Int, bscale: Float, bzero: Float, min: Byte, max: Byte) {
-        self.pattern = parameter
-        
+    public init<Byte: FITSByte>(_ parameter: Void = (), width: Int, height: Int, bscale: Float, bzero: Float, min: Byte, max: Byte) {
+
         self.height1 = height
         
         self.width1 = width
         self.width1p1 = width + 1
         self.width1m1 = width - 1
+        
+        self.width2 = width * 2
         
         self.width4 = width * 4
         self.width4p1 = width4+1
@@ -91,6 +96,7 @@ public struct BayerDecoder : ImageDecoderGCD {
         self.add2 = add1 * 2.0
         self.add3 = add1 * 3.0
         self.add4 = add1 * 4.0
+        self.add8 = add1 * 8.0
         
         self.dispersion2 = dispersion1 * 2.0
         self.dispersion3 = dispersion1 * 3.0
@@ -99,8 +105,8 @@ public struct BayerDecoder : ImageDecoderGCD {
     }
     
     public func block<In: FITSByte>(for thread: Int, of: Int,
-                      _ data: UnsafeBufferPointer<In>,
-                      _ out: UnsafeMutableBufferPointer<Float>){
+                                    _ data: UnsafeBufferPointer<In>,
+                                    _ out: UnsafeMutableBufferPointer<Float>){
         
         let cap = height1/of
         
@@ -139,7 +145,7 @@ public struct BayerDecoder : ImageDecoderGCD {
     
 }
 
-extension BayerDecoder {
+extension HIQLBayerDecoder {
     
     /**
      computes average from a plus pattern
@@ -521,15 +527,141 @@ extension BayerDecoder {
     }
 }
 
+extension HIQLBayerDecoder {
+    
+    /*
+     
+     .. .. -1 .. ..
+     .. .. +2 .. ..
+     -1 +2 +4 +2 -1
+     .. .. +2 .. ..
+     .. .. -1 .. ..
+     
+     */
+    private func plusLinear<Byte: FITSByte>(_ data: UnsafeBufferPointer<Byte>, _ offset: Int) -> Float
+    {
+        // 4 times the value
+        var sum = 4.0 * data[offset].bigEndian.float
+        
+        // plus 2 times the direct neightbors
+        sum += 2.0 * data[offset+1].bigEndian.float
+        sum += 2.0 * data[offset-1].bigEndian.float
+        sum += 2.0 * data[offset+width1].bigEndian.float
+        sum += 2.0 * data[offset-width1].bigEndian.float
+        
+        // minus 1 times the neightbors neightbors
+        sum -= data[offset+2].bigEndian.float
+        sum -= data[offset-2].bigEndian.float
+        sum -= data[offset+width2].bigEndian.float
+        sum -= data[offset-width2].bigEndian.float
+        
+        return (add8 + sum) / dispersion8
+    }
+    
+    /*
+     
+     .. .. -1 .. ..
+     .. -1 +4 -1 ..
+     +0.5  +5  +0.5
+     .. -1 +4 -1 ..
+     .. .. -1 .. ..
+     
+     */
+    private func verticalLinear<Byte: FITSByte>(_ data: UnsafeBufferPointer<Byte>, _ offset: Int) -> Float
+    {
+        
+        // 5 times the value
+        var sum = 5.0 * data[offset].bigEndian.float
+        
+        sum += 4.0 * data[offset-width1].bigEndian.float
+        sum += 4.0 * data[offset+width1].bigEndian.float
+        
+        sum -= data[offset-width1m1].bigEndian.float
+        sum -= data[offset-width1p1].bigEndian.float
+        sum -= data[offset+width1m1].bigEndian.float
+        sum -= data[offset+width1p1].bigEndian.float
+        
+        sum -= data[offset-width2].bigEndian.float
+        sum -= data[offset+width2].bigEndian.float
+        
+        
+        sum += 0.5 * data[offset-2].bigEndian.float
+        sum += 0.5 * data[offset+2].bigEndian.float
+        
+        return (add8 + sum) / dispersion8
+    }
+    
+    /*
+     
+     .. .. .5 .. ..
+     .. -1 .. -1 ..
+     -1 +4 +5 +4 -1
+     .. -1 .. -1 ..
+     .. .. .5 .. ..
+     
+     */
+    private func horizontalLinear<Byte: FITSByte>(_ data: UnsafeBufferPointer<Byte>, _ offset: Int) -> Float
+    {
+        
+        // 5 times the value
+        var sum = 5.0 * data[offset].bigEndian.float
+        
+        sum += 4.0 * data[offset-1].bigEndian.float
+        sum += 4.0 * data[offset+1].bigEndian.float
+        
+        sum -= data[offset-width1m1].bigEndian.float
+        sum -= data[offset-width1p1].bigEndian.float
+        sum -= data[offset+width1m1].bigEndian.float
+        sum -= data[offset+width1p1].bigEndian.float
+        
+        sum -= data[offset-2].bigEndian.float
+        sum -= data[offset+2].bigEndian.float
+        
+        
+        sum += 0.5 * data[offset-width2].bigEndian.float
+        sum += 0.5 * data[offset+width2].bigEndian.float
+        
+        return (add8 + sum) / dispersion8
+    }
+    
+    /*
+     
+     .... .... -1.5 .... ....
+     .... +2.0 .... +2.0 ....
+     -1.5 .... +6.0 .... -1.5
+     .... +2.0 .... +2.0 ....
+     .... .... -1.5 .... ....
+     
+     */
+    private func crossLinear<Byte: FITSByte>(_ data: UnsafeBufferPointer<Byte>, _ offset: Int) -> Float
+    {
+        
+        // 6 times the value
+        var sum = 6.0 * data[offset].bigEndian.float
+        
+        sum += 2.0 * data[offset-width1m1].bigEndian.float
+        sum += 2.0 * data[offset-width1p1].bigEndian.float
+        sum += 2.0 * data[offset+width1m1].bigEndian.float
+        sum += 2.0 * data[offset+width1p1].bigEndian.float
+        
+        sum -= 1.5 * data[offset-2].bigEndian.float
+        sum -= 1.5 * data[offset+2].bigEndian.float
+        
+        sum -= 1.5 * data[offset-width2].bigEndian.float
+        sum -= 1.5 * data[offset+width2].bigEndian.float
+        
+        return (add8 + sum) / dispersion8
+    }
+}
 
 //MARK:- Decode RGGB
-extension BayerDecoder {
+extension HIQLBayerDecoder {
     
     private func XGGYhead<Byte: FITSByte>(_ data: UnsafeBufferPointer<Byte>, _ out: UnsafeMutableBufferPointer<Float>){
         
         var offset = 0
         var pixel = 0
-        
+    
         out[pixel+1] = native(data, offset)
         out[pixel+2] = head_start_plus(data, offset)
         out[pixel+3] = head_start_cross(data, offset)
@@ -581,7 +713,7 @@ extension BayerDecoder {
         
         out[pixel+width4p1] = head_vertical(data, offset+width1)
         out[pixel+width4p2] = native(data, offset+width1)
-        out[pixel+width4p3] = horizontal(data, offset+width1)
+        out[pixel+width4p3] = end_horizontal(data, offset+width1)
         
         out[pixel+width4p4] = head_end_cross(data, offset+width1p1)
         out[pixel+width4p5] = head_end_plus(data, offset+width1p1)
@@ -599,7 +731,7 @@ extension BayerDecoder {
         out[pixel+3] = start_cross(data, offset)
         
         out[pixel+5] = horizontal(data, offset+1)
-        out[pixel+5] = native(data, offset+1)
+        out[pixel+6] = native(data, offset+1)
         out[pixel+7] = vertical(data, offset+1)
         
         out[pixel+width4p1] = vertical(data, offset+width1)
@@ -616,20 +748,20 @@ extension BayerDecoder {
         // run unchecked for all other elements of the row
         for _ in stride(from: 2, to: width1-2, by: 2) {
             
-            out[pixel+1] = native(data, offset)
-            out[pixel+2] = plus(data, offset)
-            out[pixel+3] = cross(data, offset)
+            out[pixel+1] = native(data, offset)                 // R
+            out[pixel+2] = plusLinear(data, offset)             // G
+            out[pixel+3] = crossLinear(data, offset)            // B
             
-            out[pixel+5] = horizontal(data, offset+1)
-            out[pixel+6] = native(data, offset+1)
-            out[pixel+7] = vertical(data, offset+1)
+            out[pixel+5] = horizontalLinear(data, offset+1)     // R
+            out[pixel+6] = native(data, offset+1)               // G
+            out[pixel+7] = verticalLinear(data, offset+1)       // B
             
-            out[pixel+width4p1] = vertical(data, offset+width1)
+            out[pixel+width4p1] = verticalLinear(data, offset+width1)
             out[pixel+width4p2] = native(data, offset+width1)
-            out[pixel+width4p3] = horizontal(data, offset+width1)
+            out[pixel+width4p3] = horizontalLinear(data, offset+width1)
             
-            out[pixel+width4p5] = cross(data, offset+width1p1)
-            out[pixel+width4p6] = plus(data, offset+width1p1)
+            out[pixel+width4p5] = crossLinear(data, offset+width1p1)
+            out[pixel+width4p6] = plusLinear(data, offset+width1p1)
             out[pixel+width4p7] = native(data, offset+width1p1)
             
             offset += 2
@@ -692,7 +824,7 @@ extension BayerDecoder {
             out[pixel+width4p1] = tail_vertical(data, offset+width1)
             out[pixel+width4p2] = native(data, offset+width1)
             out[pixel+width4p3] = horizontal(data, offset+width1)
-        
+            
             out[pixel+width4p5] = tail_cross(data, offset+width1p1)
             out[pixel+width4p6] = tail_plus(data, offset+width1p1)
             out[pixel+width4p7] = native(data, offset+width1p1)
@@ -711,7 +843,7 @@ extension BayerDecoder {
         
         out[pixel+width4p1] = tail_vertical(data, offset+width1)
         out[pixel+width4p2] = native(data, offset+width1)
-        out[pixel+width4p3] = horizontal(data, offset+width1)
+        out[pixel+width4p3] = end_horizontal(data, offset+width1)
         
         out[pixel+width4p5] = tail_end_cross(data, offset+width1p1)
         out[pixel+width4p6] = tail_end_plus(data, offset+width1p1)
@@ -721,7 +853,7 @@ extension BayerDecoder {
 }
 
 //MARK:- Decode GRBG
-extension BayerDecoder {
+extension HIQLBayerDecoder {
     
     private func GXYGhead<Byte: FITSByte>(_ data: UnsafeBufferPointer<Byte>, _ out: UnsafeMutableBufferPointer<Float>){
         

@@ -45,19 +45,19 @@ extension AnyImageHDU {
      - Parameter resultHandler: handler to process the `vImage_Buffer` and `vImage_CGImageFormat`
      - Returns: the result of the resultHandler
      */
-    public func decode<R>( _ resultHandler: (vImage_Buffer, vImage_CGImageFormat) throws -> R) throws -> R {
+    public func decode<R>( _ resultHandler: (inout vImage_Buffer, vImage_CGImageFormat) throws -> R) throws -> R {
         
         if let pat : String = self.headerUnit["BAYERPAT"], pat.lowercased().contains("rggb") {
             return try self.decode(BayerDecoder.self, .RGGB){ buffer in
-                try resultHandler(buffer, BayerDecoder.cgImageFormat)
+                try resultHandler(&buffer, BayerDecoder.cgImageFormat)
             }
         } else if self.naxis == 3 {
             return try self.decode(RGB_Decoder<ARGB>.self, Void()){ buffer in
-                try resultHandler(buffer, RGB_Decoder<ARGB>.cgImageFormat)
+                try resultHandler(&buffer, RGB_Decoder<ARGB>.cgImageFormat)
             }
         } else if self.naxis == 2 {
             return try self.decode(GrayscaleDecoder.self, Void()){ buffer in
-                try resultHandler(buffer, GrayscaleDecoder.cgImageFormat)
+                try resultHandler(&buffer, GrayscaleDecoder.cgImageFormat)
             }
         }
         
@@ -69,7 +69,7 @@ extension AnyImageHDU {
      - Parameter decoder: the `ImageDecoder` to use
      - Parameter resultHandler:
      */
-    public func decode<Decoder: ImageDecoder, R>(_ decoder: Decoder.Type, _ parameter: Decoder.Paramter, _ resultHandler: (vImage_Buffer) throws -> R) throws -> R {
+    public func decode<Decoder: ImageDecoder, R>(_ decoder: Decoder.Type, _ parameter: Decoder.Paramter, _ resultHandler: (inout vImage_Buffer) throws -> R) throws -> R {
         
         guard let width = self.naxis(1), let height = self.naxis(2) else {
             fatalError("invalid image dimensions")
@@ -109,9 +109,9 @@ extension AnyImageHDU {
                     fatalError("Bitpix must be present")
                 }
             
-            let buffer = vImage_Buffer(data: outPtr.baseAddress, height: vImagePixelCount(height), width: vImagePixelCount(width), rowBytes: Decoder.Out.bytes * Decoder.Pixel.channels * width)
+            var buffer = vImage_Buffer(data: outPtr.baseAddress, height: vImagePixelCount(height), width: vImagePixelCount(width), rowBytes: Decoder.Out.bytes * Decoder.Pixel.channels * width)
         
-            return try resultHandler(buffer)
+            return try resultHandler(&buffer)
             
            }
         }
