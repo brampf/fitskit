@@ -48,7 +48,7 @@ FITSKit is a highly plattform depenedend library. It compiles and runs exclusive
 With the swift package manager, add the library to your dependencies
 ```swift
 dependencies: [
-.package(url: "https://github.com/brampf/fitkit.git", from: "0.1.0")
+.package(url: "https://github.com/brampf/fitskit.git", from: "0.1.0")
 ]
 ```
 
