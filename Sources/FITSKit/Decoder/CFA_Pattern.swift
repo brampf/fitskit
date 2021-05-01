@@ -1,6 +1,6 @@
 /*
  
- Copyright (c) <2020>
+ Copyright (c) <2021>
  
  Permission is hereby granted, free of charge, to any person obtaining a copy
  of this software and associated documentation files (the "Software"), to deal
@@ -21,14 +21,32 @@
  SOFTWARE.
  
  */
+
 import Foundation
 
-
-public enum AcceleratedFail : LocalizedError {
+public enum CFA_Pattern {
     
-    case unsupportedFormat(String)
-    case invalidMetadata(String)
-    case unsupportedGeometry(String)
-    case missingData(String)
+    /**
+     RG
+     GB
+     */
+    case RGGB
     
+    /**
+     BG
+     GR
+     */
+    case BGGR
+    
+    /**
+     GR
+     BG
+     */
+    case GRBG
+    
+    /**
+     GB
+     RG
+     */
+    case GBRG
 }

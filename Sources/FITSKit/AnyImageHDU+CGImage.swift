@@ -26,7 +26,7 @@ import Accelerate
 
 extension AnyImageHDU {
     
-    convenience init(cgImage: CGImage){
+    convenience public init(cgImage: CGImage){
         
         self.init()
         

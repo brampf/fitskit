@@ -17,7 +17,7 @@ let package = Package(
     ],
     dependencies: [
         // Dependencies declare other packages that this package depends on.
-        .package(name: "FITSCore", url: "https://github.com/brampf/fitscore.git", .branch("master"))
+        .package(name: "FITSCore", url: "https://github.com/brampf/fitscore.git", .branch("fitskit-advanced"))
     ],
     targets: [
         // Targets are the basic building blocks of a package. A target can define a module or a test suite.
@@ -27,6 +27,9 @@ let package = Package(
             dependencies: [.product(name: "FITSCore", package: "FITSCore")]),
         .testTarget(
             name: "FITSKitTests",
-            dependencies: ["FITSKit","FITSCore"]),
+            dependencies: ["FITSKit","FITSCore"],
+            resources: [
+                .process("Samples")
+            ]),
     ]
 )
