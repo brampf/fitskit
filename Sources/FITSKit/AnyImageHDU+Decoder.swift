@@ -48,9 +48,17 @@ extension AnyImageHDU {
     public func decode<R>( _ resultHandler: (inout vImage_Buffer, vImage_CGImageFormat) throws -> R) throws -> R {
         
         if let pat : String = self.headerUnit["BAYERPAT"], pat.lowercased().contains("rggb") {
-            return try self.decode(BayerDecoder.self, .RGGB){ buffer in
-                try resultHandler(&buffer, BayerDecoder.cgImageFormat)
+            
+            if self.headerUnit.dataSize % 4 == 0 {
+                return try self.decode(BayerDecoder.self, .RGGB){ buffer in
+                    try resultHandler(&buffer, BayerDecoder.cgImageFormat)
+                }
+            } else {
+                return try self.decode(GrayscaleDecoder.self, Void()){ buffer in
+                    try resultHandler(&buffer, GrayscaleDecoder.cgImageFormat)
+                }
             }
+                
         } else if self.naxis == 3 {
             return try self.decode(RGB_Decoder<ARGB>.self, Void()){ buffer in
                 try resultHandler(&buffer, RGB_Decoder<ARGB>.cgImageFormat)
@@ -85,7 +93,7 @@ extension AnyImageHDU {
         
         return try data.withUnsafeBytes{ dataPtr -> R in
            try out.withUnsafeMutableBufferPointer{ outPtr -> R in
-                
+            
                 switch self.bitpix {
                 case .UINT8:
                     let decoder = Decoder.init(parameter, width: width, height: height, bscale: bscale, bzero: bzero, min: UInt8.min.float ,max: UInt8.max.float)
