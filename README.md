@@ -7,7 +7,7 @@
 <img src="https://img.shields.io/badge/license-MIT-brightgreen.svg" alt="MIT License">
 </a>
 <a href="https://swift.org">
-<img src="https://img.shields.io/badge/swift-5.2-brightgreen.svg" alt="Swift 5.2">
+<img src="https://img.shields.io/badge/swift-5.4-brightgreen.svg" alt="Swift 5.4">
 </a>
 </p>
 
@@ -37,7 +37,7 @@ FITSKit is a highly plattform depenedend library. It compiles and runs exclusive
     * [x] BITPIX -32 support
     * [x] BITPIX -64 support
 * Native code
-    * Swift 5.3+
+    * Swift 5.4
     * Compiles for macCatalyst
     * Compiles for iPadOS / iOS
 

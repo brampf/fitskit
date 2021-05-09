@@ -1,4 +1,4 @@
-// swift-tools-version:5.3
+// swift-tools-version:5.4
 // The swift-tools-version declares the minimum version of Swift required to build this package.
 
 import PackageDescription
@@ -6,8 +6,8 @@ import PackageDescription
 let package = Package(
     name: "FITSKit",
     platforms: [
-        .iOS("13.4"),
-        .macOS("10.15")
+        .iOS("14"),
+        .macOS("11")
     ],
     products: [
         // Products define the executables and libraries produced by a package, and make them visible to other packages.
@@ -17,7 +17,7 @@ let package = Package(
     ],
     dependencies: [
         // Dependencies declare other packages that this package depends on.
-        .package(name: "FITSCore", url: "https://github.com/brampf/fitscore.git", .branch("fitskit-advanced"))
+        .package(name: "FITSCore", url: "https://github.com/brampf/fitscore.git", .exact("0.3.0"))
     ],
     targets: [
         // Targets are the basic building blocks of a package. A target can define a module or a test suite.
